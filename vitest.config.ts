@@ -5,6 +5,7 @@ export default defineConfig({
     projects: [
       'packages/injecta',
       'packages/stage-ui',
+      'packages/tensor-logic',
     ],
   },
 })
