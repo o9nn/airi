@@ -5218,6 +5218,7 @@ importers:
 
   packages/stream-kit: {}
 
+  packages/tensor-logic: {}
   packages/testing-audio:
     dependencies:
       '@moeru/std':

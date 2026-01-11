@@ -1,0 +1,51 @@
+{
+  "name": "@proj-airi/tensor-logic",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tensor Logic: AI programming language unifying deep learning and symbolic AI through tensor equations and Einstein summation",
+  "author": {
+    "name": "Moeru AI Project AIRI Team",
+    "email": "airi@moeru.ai",
+    "url": "https://github.com/moeru-ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moeru-ai/airi.git",
+    "directory": "packages/tensor-logic"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./parser": {
+      "types": "./dist/parser/index.d.ts",
+      "default": "./dist/parser/index.js"
+    },
+    "./inference": {
+      "types": "./dist/inference/index.d.ts",
+      "default": "./dist/inference/index.js"
+    },
+    "./autodiff": {
+      "types": "./dist/autodiff/index.d.ts",
+      "default": "./dist/autodiff/index.js"
+    },
+    "./embeddings": {
+      "types": "./dist/embeddings/index.d.ts",
+      "default": "./dist/embeddings/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {}
+}
