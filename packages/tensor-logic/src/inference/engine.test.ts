@@ -5,16 +5,13 @@ import {
   createRelation,
   createShape,
 } from '../core/types'
-
 import {
-  BackwardChainingEngine,
   createBackwardEngine,
   createForwardEngine,
   execute,
-  ForwardChainingEngine,
 } from './engine'
 
-describe('ForwardChainingEngine', () => {
+describe('forwardChainingEngine', () => {
   it('should execute simple assignment', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
@@ -152,7 +149,7 @@ describe('ForwardChainingEngine', () => {
   })
 })
 
-describe('BackwardChainingEngine', () => {
+describe('backwardChainingEngine', () => {
   it('should query defined tensor', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
@@ -218,7 +215,7 @@ describe('BackwardChainingEngine', () => {
   })
 })
 
-describe('Datalog-style reasoning', () => {
+describe('datalog-style reasoning', () => {
   it('should execute transitive closure', () => {
     // Parent relation: 0->1, 1->2
     const Parent = createRelation(['x', 'y'], [[0, 1], [1, 2]], [3, 3])
@@ -254,7 +251,7 @@ describe('Datalog-style reasoning', () => {
   })
 })
 
-describe('Engine with different nonlinearities', () => {
+describe('engine with different nonlinearities', () => {
   const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
   it('should handle leaky_relu', () => {
@@ -302,7 +299,7 @@ describe('Engine with different nonlinearities', () => {
   })
 })
 
-describe('Engine step method', () => {
+describe('engine step method', () => {
   it('should execute single step', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 2 }]), [1, 2])
 

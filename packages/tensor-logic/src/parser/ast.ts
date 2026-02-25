@@ -80,13 +80,13 @@ export interface Relation {
 /**
  * Expression union type
  */
-export type Expression =
-  | TensorRef
-  | NumberLiteral
-  | BinaryOp
-  | UnaryOp
-  | FunctionCall
-  | Relation
+export type Expression
+  = | TensorRef
+    | NumberLiteral
+    | BinaryOp
+    | UnaryOp
+    | FunctionCall
+    | Relation
 
 /**
  * Tensor equation: LHS = RHS or LHS = nonlinearity(RHS)
@@ -129,16 +129,16 @@ export interface Program {
  * Visitor interface for AST traversal
  */
 export interface ASTVisitor<T> {
-  visitProgram?(node: Program): T
-  visitEquation?(node: TensorEquation): T
-  visitRule?(node: DatalogRule): T
-  visitTensorRef?(node: TensorRef): T
-  visitNumberLiteral?(node: NumberLiteral): T
-  visitBinaryOp?(node: BinaryOp): T
-  visitUnaryOp?(node: UnaryOp): T
-  visitFunctionCall?(node: FunctionCall): T
-  visitRelation?(node: Relation): T
-  visitIndexRef?(node: IndexRef): T
+  visitProgram?: (node: Program) => T
+  visitEquation?: (node: TensorEquation) => T
+  visitRule?: (node: DatalogRule) => T
+  visitTensorRef?: (node: TensorRef) => T
+  visitNumberLiteral?: (node: NumberLiteral) => T
+  visitBinaryOp?: (node: BinaryOp) => T
+  visitUnaryOp?: (node: UnaryOp) => T
+  visitFunctionCall?: (node: FunctionCall) => T
+  visitRelation?: (node: Relation) => T
+  visitIndexRef?: (node: IndexRef) => T
 }
 
 /**
