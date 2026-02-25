@@ -162,7 +162,7 @@ describe('differentiableEngine', () => {
   })
 })
 
-describe('sGDOptimizer', () => {
+describe('sgdOptimizer', () => {
   it('should update parameters', () => {
     const optimizer = new SGDOptimizer(0.1, 0)
 
