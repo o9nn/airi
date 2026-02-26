@@ -13,8 +13,8 @@
  * - p, q, r are embedding dimensions (much smaller than i, j, k)
  */
 
-import type { DenseTensor, IndexName, SparseTensor, Tensor, TensorShape } from '../core/types'
-import { join, project } from '../core/operations'
+import type { DenseTensor, SparseTensor, Tensor, TensorShape } from '../core/types'
+
 import {
   clone,
   coordsToFlat,
@@ -114,7 +114,7 @@ export function tuckerReconstruct(decomposition: TuckerDecomposition): DenseTens
 function computeCore(
   tensor: DenseTensor,
   factors: DenseTensor[],
-  embeddingDims: number[],
+  _embeddingDims: number[],
 ): DenseTensor {
   // Core = tensor ×₁ M₁ᵀ ×₂ M₂ᵀ ×₃ M₃ᵀ ...
   let result = clone(tensor)
@@ -139,13 +139,13 @@ function updateFactor(
   // Full implementation would use proper ALS
 
   const modeSize = tensor.shape.indices[mode].size
-  const embDim = factors[mode].shape.indices[1].size
+  const _embDim = factors[mode].shape.indices[1].size
 
   // Compute mode-n unfolding of tensor
-  const unfolding = modeUnfold(tensor, mode)
+  const _unfolding = modeUnfold(tensor, mode)
 
   // Compute Khatri-Rao product of other factors
-  const krProduct = khatriRaoProduct(factors, mode)
+  const _krProduct = khatriRaoProduct(factors, mode)
 
   // Update factor via least squares
   // In simplified form: new_factor = unfold(X) * krProduct * (krProduct^T * krProduct)^-1
@@ -178,8 +178,8 @@ function modeProduct(
   const outData = new Array(outShape.size).fill(0)
 
   // Compute mode-n product
-  const strides = computeStrides(tensorShape)
-  const outStrides = computeStrides(outShape)
+  const _strides = computeStrides(tensorShape)
+  const _outStrides = computeStrides(outShape)
 
   for (let outI = 0; outI < outShape.size; outI++) {
     const outCoords = flatToCoords(outI, outShape)
@@ -434,7 +434,7 @@ export function embedRelation(
   relation: SparseTensor,
   embeddings: DenseTensor,
 ): DenseTensor {
-  const dense = toDense(relation)
+  const _dense = toDense(relation)
   const embDim = embeddings.shape.indices[1].size
 
   // Create output shape for embedded relation

@@ -12,15 +12,14 @@
  *   ∂Y/∂Xi = T * X1 * ... * Xi-1 * Xi+1 * ... * Xn
  */
 
-import type { DenseTensor, IndexName, Tensor, TensorShape } from '../core/types'
-import type { BinaryOp, Expression, FunctionCall, Program, TensorEquation, TensorRef } from '../parser/ast'
-import { add, hadamard, join, scale, subtract, transpose } from '../core/operations'
+import type { DenseTensor, Tensor } from '../core/types'
+import type { BinaryOp, Expression, FunctionCall, Program, TensorEquation } from '../parser/ast'
+
+import { add, join, scale, subtract, transpose } from '../core/operations'
 import {
   clone,
-  coordsToFlat,
   createDenseTensor,
   createShape,
-  flatToCoords,
   toDense,
   zeros,
 } from '../core/types'
@@ -105,7 +104,7 @@ export class GradientTape {
       throw new Error(`Loss tensor '${lossName}' not found`)
     }
 
-    const lossGrad = createDenseTensor(loss.shape, Array(loss.shape.size).fill(1))
+    const lossGrad = createDenseTensor(loss.shape, new Array(loss.shape.size).fill(1))
     this.gradients.set(lossName, lossGrad)
 
     // Backpropagate through tape in reverse order
@@ -272,7 +271,7 @@ export class DifferentiableEngine {
         inputs,
         equation: eq,
         value: result,
-        backward: (grad) => this.computeInputGradients(eq.rhs, grad),
+        backward: grad => this.computeInputGradients(eq.rhs, grad),
       })
     }
   }
@@ -376,7 +375,7 @@ export class DifferentiableEngine {
    */
   private evaluateFunction(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
-    if (args.some(a => a === null))
+    if (args.includes(null))
       return null
 
     const x = args[0]!
@@ -471,14 +470,15 @@ export class DifferentiableEngine {
             this.computeGradsRecursive(expr.right, upstreamGrad, grads)
             break
 
-          case '-':
+          case '-': {
             // ∂(A-B)/∂A = 1, ∂(A-B)/∂B = -1
             this.computeGradsRecursive(expr.left, upstreamGrad, grads)
             const negGrad = scale(upstreamGrad, -1)
             this.computeGradsRecursive(expr.right, negGrad, grads)
             break
+          }
 
-          case '*':
+          case '*': {
             // For join: ∂(AB)/∂A = upstream * B, ∂(AB)/∂B = A * upstream
             // This is the key insight from tensor logic paper
             const leftGrad = this.computeJoinGradient(upstreamGrad, right, left)
@@ -486,6 +486,7 @@ export class DifferentiableEngine {
             this.computeGradsRecursive(expr.left, leftGrad, grads)
             this.computeGradsRecursive(expr.right, rightGrad, grads)
             break
+          }
         }
         break
       }

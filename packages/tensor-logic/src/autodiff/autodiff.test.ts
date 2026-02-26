@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDenseTensor, createShape } from '../core/types'
-
 import {
   AdamOptimizer,
   createDifferentiableEngine,
-  DifferentiableEngine,
   GradientTape,
   LossFunctions,
   SGDOptimizer,
 } from './autodiff'
 
-describe('LossFunctions', () => {
+describe('lossFunctions', () => {
   it('should compute MSE loss', () => {
     const predictions = createDenseTensor(
       createShape([{ name: 'i', size: 3 }]),
@@ -84,7 +82,7 @@ describe('LossFunctions', () => {
   })
 })
 
-describe('GradientTape', () => {
+describe('gradientTape', () => {
   it('should record tensor values', () => {
     const tape = new GradientTape()
     const tensor = createDenseTensor(createShape([{ name: 'i', size: 2 }]), [1, 2])
@@ -116,7 +114,7 @@ describe('GradientTape', () => {
   })
 })
 
-describe('DifferentiableEngine', () => {
+describe('differentiableEngine', () => {
   it('should execute forward pass', () => {
     const engine = createDifferentiableEngine('Y = sigmoid(X)')
 
@@ -164,7 +162,7 @@ describe('DifferentiableEngine', () => {
   })
 })
 
-describe('SGDOptimizer', () => {
+describe('sgdOptimizer', () => {
   it('should update parameters', () => {
     const optimizer = new SGDOptimizer(0.1, 0)
 
@@ -209,7 +207,7 @@ describe('SGDOptimizer', () => {
   })
 })
 
-describe('AdamOptimizer', () => {
+describe('adamOptimizer', () => {
   it('should update parameters', () => {
     const optimizer = new AdamOptimizer(0.1)
 
@@ -250,14 +248,14 @@ describe('AdamOptimizer', () => {
   })
 })
 
-describe('Training loop', () => {
+describe('training loop', () => {
   it('should reduce loss over iterations', () => {
     const engine = createDifferentiableEngine(`
       Y = sigmoid(W[i] * X[i])
     `)
 
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
-    const target = createDenseTensor(createShape([]), [0.9])
+    const _target = createDenseTensor(createShape([]), [0.9])
 
     engine.setInput('X', X)
     engine.setParameter('W', createDenseTensor(
@@ -303,7 +301,7 @@ describe('Training loop', () => {
   })
 })
 
-describe('Gradient computation edge cases', () => {
+describe('gradient computation edge cases', () => {
   it('should handle zero gradients', () => {
     const engine = createDifferentiableEngine('Y = X')
 

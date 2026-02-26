@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDenseTensor, createRelation, createShape } from '../core/types'
-
 import {
-  analogyCompletion,
   AnalogicalReasoningEngine,
+  analogyCompletion,
   computeOptimalTemperature,
   computeSimilarityMatrix,
   createAnalogicalEngine,
@@ -19,7 +18,6 @@ import {
   querySuperposition,
   superpositionEncode,
   tuckerDecompose,
-  tuckerError,
   tuckerReconstruct,
 } from './tucker'
 
@@ -51,9 +49,18 @@ describe('superpositionEncode', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 4 }]),
       [
-        1, 0, 0, 0, // Object 0
-        0, 1, 0, 0, // Object 1
-        0, 0, 1, 0, // Object 2
+        1,
+        0,
+        0,
+        0, // Object 0
+        0,
+        1,
+        0,
+        0, // Object 1
+        0,
+        0,
+        1,
+        0, // Object 2
       ],
     )
 
@@ -79,9 +86,15 @@ describe('querySuperposition', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0, // Object 0
-        0, 1, 0, // Object 1
-        0, 0, 1, // Object 2
+        1,
+        0,
+        0, // Object 0
+        0,
+        1,
+        0, // Object 1
+        0,
+        0,
+        1, // Object 2
       ],
     )
 
@@ -118,9 +131,15 @@ describe('queryEmbeddedRelation', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -142,10 +161,22 @@ describe('tuckerDecompose', () => {
     const tensor = createDenseTensor(
       createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
       [
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -160,10 +191,22 @@ describe('tuckerDecompose', () => {
     const tensor = createDenseTensor(
       createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
       [
-        1, 2, 3, 4,
-        2, 3, 4, 5,
-        3, 4, 5, 6,
-        4, 5, 6, 7,
+        1,
+        2,
+        3,
+        4,
+        2,
+        3,
+        4,
+        5,
+        3,
+        4,
+        5,
+        6,
+        4,
+        5,
+        6,
+        7,
       ],
     )
 
@@ -199,9 +242,15 @@ describe('computeSimilarityMatrix', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -259,7 +308,7 @@ describe('temperatureSigmoid', () => {
   })
 })
 
-describe('AnalogicalReasoningEngine', () => {
+describe('analogicalReasoningEngine', () => {
   it('should create engine with embeddings', () => {
     const emb = createRandomEmbeddings(10, 20)
     const engine = new AnalogicalReasoningEngine(emb, 1.0)
@@ -272,9 +321,12 @@ describe('AnalogicalReasoningEngine', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 2 }]),
       [
-        1, 0, // Object 0
-        0.9, 0.1, // Object 1 (similar to 0)
-        0, 1, // Object 2 (different)
+        1,
+        0, // Object 0
+        0.9,
+        0.1, // Object 1 (similar to 0)
+        0,
+        1, // Object 2 (different)
       ],
     )
 
@@ -296,10 +348,14 @@ describe('AnalogicalReasoningEngine', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 4 }, { name: 'd', size: 2 }]),
       [
-        1, 0, // Object 0
-        0.95, 0.05, // Object 1 (very similar to 0)
-        0, 1, // Object 2
-        0.1, 0.9, // Object 3 (similar to 2)
+        1,
+        0, // Object 0
+        0.95,
+        0.05, // Object 1 (very similar to 0)
+        0,
+        1, // Object 2
+        0.1,
+        0.9, // Object 3 (similar to 2)
       ],
     )
 
@@ -331,10 +387,10 @@ describe('AnalogicalReasoningEngine', () => {
     const emb = createRandomEmbeddings(5, 20)
     const engine = new AnalogicalReasoningEngine(emb, 1.0)
 
-    const sim1 = engine.getSimilarity(0, 1)
+    const _sim1 = engine.getSimilarity(0, 1)
 
     engine.setTemperature(0.1)
-    const sim2 = engine.getSimilarity(0, 1)
+    const _sim2 = engine.getSimilarity(0, 1)
 
     // Different temperatures should give different similarities
     // (unless they happen to be exactly 0.5)
@@ -342,7 +398,7 @@ describe('AnalogicalReasoningEngine', () => {
   })
 })
 
-describe('ReasoningModes', () => {
+describe('reasoningModes', () => {
   it('should have predefined modes', () => {
     expect(ReasoningModes.DEDUCTIVE.temperature).toBe(0)
     expect(ReasoningModes.WEAK_ANALOGY.temperature).toBe(0.1)
@@ -386,11 +442,21 @@ describe('analogyCompletion', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 5 }, { name: 'd', size: 3 }]),
       [
-        0, 0, 0, // Object 0
-        1, 0, 0, // Object 1
-        0, 1, 0, // Object 2
-        1, 1, 0, // Object 3 (= 1 + 2 - 0 conceptually)
-        0, 0, 1, // Object 4 (unrelated)
+        0,
+        0,
+        0, // Object 0
+        1,
+        0,
+        0, // Object 1
+        0,
+        1,
+        0, // Object 2
+        1,
+        1,
+        0, // Object 3 (= 1 + 2 - 0 conceptually)
+        0,
+        0,
+        1, // Object 4 (unrelated)
       ],
     )
 
@@ -431,7 +497,7 @@ describe('computeOptimalTemperature', () => {
   })
 })
 
-describe('Integration tests', () => {
+describe('integration tests', () => {
   it('should combine Tucker decomposition with analogical reasoning', () => {
     // Create a relation
     const relation = createRelation(

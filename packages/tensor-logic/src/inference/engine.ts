@@ -8,6 +8,7 @@
  * This is the core execution engine for tensor logic programs
  */
 
+import type { DenseTensor, Tensor, TensorShape } from '../core/types'
 import type {
   BinaryOp,
   Expression,
@@ -17,16 +18,7 @@ import type {
   TensorEquation,
   TensorRef,
 } from '../parser/ast'
-import type { DenseTensor, IndexName, Tensor, TensorShape } from '../core/types'
-import {
-  add,
-  divide,
-  hadamard,
-  join,
-  project,
-  scale,
-  subtract,
-} from '../core/operations'
+
 import {
   abs,
   batchNorm,
@@ -58,10 +50,15 @@ import {
   tanh,
 } from '../core/nonlinearities'
 import {
-  clone,
+  add,
+  divide,
+  join,
+  project,
+  subtract,
+} from '../core/operations'
+import {
   createDenseTensor,
   createShape,
-  full,
   toDense,
 } from '../core/types'
 import { parse } from '../parser/parser'
@@ -356,7 +353,7 @@ export class ForwardChainingEngine {
   private evaluateFunctionCall(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
 
-    if (args.some(a => a === null))
+    if (args.includes(null))
       return null
 
     const firstArg = args[0]!
@@ -673,7 +670,7 @@ export class BackwardChainingEngine {
   private evaluateFunctionCall(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
 
-    if (args.some(a => a === null))
+    if (args.includes(null))
       return null
 
     const firstArg = args[0]!
