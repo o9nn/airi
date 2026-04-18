@@ -27,18 +27,30 @@ jobs:
           workflow_conclusion: success
           run_id: ${{ github.event.workflow_run.id }}
           name: preview-meta
-          path: preview-meta
+          path: ${{ runner.temp }}/preview-meta
           allow_forks: true
 
       - name: Parse metadata
         id: meta
         run: |
-          source preview-meta/preview_meta
-          echo "PR_NUM=$PR_NUM" >> "$GITHUB_OUTPUT"
-          echo "REPO_FULL_NAME=$REPO_FULL_NAME" >> "$GITHUB_OUTPUT"
-          echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_OUTPUT"
-          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_OUTPUT"
-          echo "BRANCH_NAME=$HEAD_REF" >> "$GITHUB_ENV"
+          META_FILE="${{ runner.temp }}/preview-meta/preview_meta"
+
+          PR_NUM="$(grep -E '^PR_NUM=' "$META_FILE" | head -n1 | cut -d= -f2-)"
+          REPO_FULL_NAME="$(grep -E '^REPO_FULL_NAME=' "$META_FILE" | head -n1 | cut -d= -f2-)"
+          HEAD_REF="$(grep -E '^HEAD_REF=' "$META_FILE" | head -n1 | cut -d= -f2-)"
+          HEAD_SHA="$(grep -E '^HEAD_SHA=' "$META_FILE" | head -n1 | cut -d= -f2-)"
+
+          [ -n "$PR_NUM" ] && [ -n "$REPO_FULL_NAME" ] && [ -n "$HEAD_REF" ] && [ -n "$HEAD_SHA" ] || { echo "Missing required metadata"; exit 1; }
+          [[ "$PR_NUM" =~ ^[0-9]+$ ]] || { echo "Invalid PR_NUM"; exit 1; }
+          [[ "$REPO_FULL_NAME" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || { echo "Invalid REPO_FULL_NAME"; exit 1; }
+          [[ "$HEAD_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "Invalid HEAD_REF"; exit 1; }
+          [[ "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "Invalid HEAD_SHA"; exit 1; }
+
+          printf 'PR_NUM=%s\n' "$PR_NUM" >> "$GITHUB_OUTPUT"
+          printf 'REPO_FULL_NAME=%s\n' "$REPO_FULL_NAME" >> "$GITHUB_OUTPUT"
+          printf 'HEAD_REF=%s\n' "$HEAD_REF" >> "$GITHUB_OUTPUT"
+          printf 'HEAD_SHA=%s\n' "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          printf 'BRANCH_NAME=%s\n' "$HEAD_REF" >> "$GITHUB_ENV"
 
       - name: Find Comment
         if: ${{ always() }}
