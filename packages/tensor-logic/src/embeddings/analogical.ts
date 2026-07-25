@@ -9,14 +9,12 @@
  * allows smooth interpolation between symbolic and neural reasoning.
  */
 
-import type { DenseTensor, SparseTensor, Tensor } from '../core/types'
-import { join, project } from '../core/operations'
+import type { DenseTensor, Tensor } from '../core/types'
+
 import {
   clone,
-  coordsToFlat,
   createDenseTensor,
   createShape,
-  flatToCoords,
   toDense,
 } from '../core/types'
 

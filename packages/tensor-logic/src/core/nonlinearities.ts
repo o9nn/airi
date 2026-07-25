@@ -11,12 +11,10 @@
  */
 
 import type { DenseTensor, IndexName, Tensor } from './types'
+
 import {
   clone,
-  coordsToFlat,
   createDenseTensor,
-  createShape,
-  flatToCoords,
   toDense,
 } from './types'
 

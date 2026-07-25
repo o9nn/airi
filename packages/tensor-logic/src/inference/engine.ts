@@ -8,6 +8,7 @@
  * This is the core execution engine for tensor logic programs
  */
 
+import type { DenseTensor, Tensor, TensorShape } from '../core/types'
 import type {
   BinaryOp,
   Expression,
@@ -17,16 +18,7 @@ import type {
   TensorEquation,
   TensorRef,
 } from '../parser/ast'
-import type { DenseTensor, IndexName, Tensor, TensorShape } from '../core/types'
-import {
-  add,
-  divide,
-  hadamard,
-  join,
-  project,
-  scale,
-  subtract,
-} from '../core/operations'
+
 import {
   abs,
   batchNorm,
@@ -58,10 +50,15 @@ import {
   tanh,
 } from '../core/nonlinearities'
 import {
-  clone,
+  add,
+  divide,
+  join,
+  project,
+  subtract,
+} from '../core/operations'
+import {
   createDenseTensor,
   createShape,
-  full,
   toDense,
 } from '../core/types'
 import { parse } from '../parser/parser'
@@ -70,6 +67,44 @@ import { parse } from '../parser/parser'
  * Tensor store: maps tensor names to tensors
  */
 export type TensorStore = Map<string, Tensor>
+
+/**
+ * Read an axis name from a function call's argument list.
+ *
+ * An axis argument (`softmax(X, i)`) names an index variable, not a tensor, so
+ * it has to be read off the syntax tree. Evaluating it would look up a tensor
+ * called `i`, find nothing, and abort the whole call.
+ */
+function axisArg(call: FunctionCall, position: number): string | undefined {
+  const arg = call.arguments[position]
+  return arg?.type === 'tensor' ? arg.name : undefined
+}
+
+/**
+ * Rebind a tensor's index names to the variables written at a reference site.
+ *
+ * The index variables in an equation — not the names a tensor happens to carry
+ * in the store — decide which dimensions are contracted. Without this,
+ * `Parent[x,y] * Parent[y,z]` would see two operands with identical index names
+ * and sum over every dimension, collapsing the grandparent join to a scalar.
+ *
+ * This is a pure rename: element order is untouched, so the data is shared
+ * rather than copied. The stored tensor is never mutated.
+ */
+function bindIndices(tensor: Tensor, ref: TensorRef): Tensor {
+  // A bare reference (`X`) inherits the stored names; a rank mismatch means the
+  // reference cannot be positionally aligned, so leave it alone.
+  if (ref.indices.length === 0 || ref.indices.length !== tensor.shape.indices.length) {
+    return tensor
+  }
+
+  const bound = createShape(tensor.shape.indices.map((idx, i) => ({
+    ...idx,
+    name: ref.indices[i].name,
+  })))
+
+  return { ...tensor, shape: bound }
+}
 
 /**
  * Shape registry: maps tensor names to shapes (for type checking)
@@ -314,9 +349,7 @@ export class ForwardChainingEngine {
     if (!tensor)
       return null
 
-    // For now, return the tensor directly
-    // Index transformations would be handled here
-    return tensor
+    return bindIndices(tensor, ref)
   }
 
   /**
@@ -356,10 +389,13 @@ export class ForwardChainingEngine {
   private evaluateFunctionCall(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
 
-    if (args.some(a => a === null))
+    // Only the operand has to resolve to a tensor. Trailing arguments are
+    // either scalars (which evaluate fine) or axis names (which deliberately
+    // do not), and each call site below already falls back to a default.
+    if (args[0] == null)
       return null
 
-    const firstArg = args[0]!
+    const firstArg = args[0]
 
     // Map function names to implementations
     switch (call.name.toLowerCase()) {
@@ -402,7 +438,7 @@ export class ForwardChainingEngine {
         return tanh(firstArg)
 
       case 'softmax':
-        return softmax(firstArg, args[1] ? String((args[1] as TensorRef).name) : undefined)
+        return softmax(firstArg, axisArg(call, 1))
 
       case 'log_softmax':
         return logSoftmax(firstArg)
@@ -412,7 +448,7 @@ export class ForwardChainingEngine {
         return lnorm(firstArg)
 
       case 'batchnorm':
-        return batchNorm(firstArg, args[1] ? String((args[1] as TensorRef).name) : 'b')
+        return batchNorm(firstArg, axisArg(call, 1) ?? 'b')
 
       case 'dropout':
         return dropout(firstArg, args[1] ? (args[1] as DenseTensor).data[0] : 0.5, this.options.training)
@@ -620,9 +656,10 @@ export class BackwardChainingEngine {
         return createDenseTensor(createShape([]), [expr.value])
 
       case 'tensor': {
-        // Recursively query the tensor
+        // Recursively query the tensor, then bind it to the index variables
+        // used at this reference site.
         const result = this.query(expr.name)
-        return result
+        return result === null ? null : bindIndices(result, expr)
       }
 
       case 'binary': {
@@ -673,10 +710,13 @@ export class BackwardChainingEngine {
   private evaluateFunctionCall(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
 
-    if (args.some(a => a === null))
+    // Only the operand has to resolve to a tensor. Trailing arguments are
+    // either scalars (which evaluate fine) or axis names (which deliberately
+    // do not), and each call site below already falls back to a default.
+    if (args[0] == null)
       return null
 
-    const firstArg = args[0]!
+    const firstArg = args[0]
 
     // Same function mapping as forward chaining
     switch (call.name.toLowerCase()) {

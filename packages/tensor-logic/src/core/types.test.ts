@@ -14,8 +14,8 @@ import {
   full,
   getElement,
   ones,
-  random,
   randn,
+  random,
   rank,
   reshape,
   setElement,
@@ -24,7 +24,7 @@ import {
   zeros,
 } from './types'
 
-describe('TensorShape', () => {
+describe('tensorShape', () => {
   it('should create a shape with indices', () => {
     const shape = createShape([
       { name: 'i', size: 3 },
@@ -56,7 +56,7 @@ describe('TensorShape', () => {
   })
 })
 
-describe('DenseTensor', () => {
+describe('denseTensor', () => {
   it('should create a tensor with data', () => {
     const shape = createShape([{ name: 'i', size: 3 }])
     const tensor = createDenseTensor(shape, [1, 2, 3])
@@ -86,7 +86,7 @@ describe('DenseTensor', () => {
   })
 })
 
-describe('SparseTensor', () => {
+describe('sparseTensor', () => {
   it('should create a sparse tensor', () => {
     const shape = createShape([
       { name: 'x', size: 10 },
@@ -179,9 +179,15 @@ describe('tensor creation utilities', () => {
     const tensor = eye('i', 'j', 3)
 
     expect(tensor.data).toEqual([
-      1, 0, 0,
-      0, 1, 0,
-      0, 0, 1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
     ])
   })
 })

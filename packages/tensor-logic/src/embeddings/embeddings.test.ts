@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDenseTensor, createRelation, createShape } from '../core/types'
-
 import {
-  analogyCompletion,
   AnalogicalReasoningEngine,
+  analogyCompletion,
   computeOptimalTemperature,
   computeSimilarityMatrix,
   createAnalogicalEngine,
@@ -19,7 +18,6 @@ import {
   querySuperposition,
   superpositionEncode,
   tuckerDecompose,
-  tuckerError,
   tuckerReconstruct,
 } from './tucker'
 
@@ -51,9 +49,18 @@ describe('superpositionEncode', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 4 }]),
       [
-        1, 0, 0, 0, // Object 0
-        0, 1, 0, 0, // Object 1
-        0, 0, 1, 0, // Object 2
+        1,
+        0,
+        0,
+        0, // Object 0
+        0,
+        1,
+        0,
+        0, // Object 1
+        0,
+        0,
+        1,
+        0, // Object 2
       ],
     )
 
@@ -79,9 +86,15 @@ describe('querySuperposition', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0, // Object 0
-        0, 1, 0, // Object 1
-        0, 0, 1, // Object 2
+        1,
+        0,
+        0, // Object 0
+        0,
+        1,
+        0, // Object 1
+        0,
+        0,
+        1, // Object 2
       ],
     )
 
@@ -118,9 +131,15 @@ describe('queryEmbeddedRelation', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -142,10 +161,22 @@ describe('tuckerDecompose', () => {
     const tensor = createDenseTensor(
       createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
       [
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -160,10 +191,22 @@ describe('tuckerDecompose', () => {
     const tensor = createDenseTensor(
       createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
       [
-        1, 2, 3, 4,
-        2, 3, 4, 5,
-        3, 4, 5, 6,
-        4, 5, 6, 7,
+        1,
+        2,
+        3,
+        4,
+        2,
+        3,
+        4,
+        5,
+        3,
+        4,
+        5,
+        6,
+        4,
+        5,
+        6,
+        7,
       ],
     )
 
@@ -187,8 +230,10 @@ describe('tuckerReconstruct', () => {
     const decomposition = tuckerDecompose(tensor, [2, 2], 3)
     const reconstructed = tuckerReconstruct(decomposition)
 
-    // Check that we get a result with numeric data
-    expect(reconstructed.data).toHaveLength(decomposition.core.shape.size)
+    // A reconstruction lives in the original space, not the compressed core:
+    // the factors map each mode back from its embedding dimension.
+    expect(reconstructed.data).toHaveLength(tensor.data.length)
+    expect(reconstructed.shape.indices.map(i => i.size)).toEqual([3, 3])
     expect(reconstructed.data.every(v => Number.isFinite(v))).toBe(true)
   })
 })
@@ -199,9 +244,15 @@ describe('computeSimilarityMatrix', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 3 }]),
       [
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
       ],
     )
 
@@ -259,7 +310,7 @@ describe('temperatureSigmoid', () => {
   })
 })
 
-describe('AnalogicalReasoningEngine', () => {
+describe('analogicalReasoningEngine', () => {
   it('should create engine with embeddings', () => {
     const emb = createRandomEmbeddings(10, 20)
     const engine = new AnalogicalReasoningEngine(emb, 1.0)
@@ -272,9 +323,12 @@ describe('AnalogicalReasoningEngine', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 3 }, { name: 'd', size: 2 }]),
       [
-        1, 0, // Object 0
-        0.9, 0.1, // Object 1 (similar to 0)
-        0, 1, // Object 2 (different)
+        1,
+        0, // Object 0
+        0.9,
+        0.1, // Object 1 (similar to 0)
+        0,
+        1, // Object 2 (different)
       ],
     )
 
@@ -296,10 +350,14 @@ describe('AnalogicalReasoningEngine', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 4 }, { name: 'd', size: 2 }]),
       [
-        1, 0, // Object 0
-        0.95, 0.05, // Object 1 (very similar to 0)
-        0, 1, // Object 2
-        0.1, 0.9, // Object 3 (similar to 2)
+        1,
+        0, // Object 0
+        0.95,
+        0.05, // Object 1 (very similar to 0)
+        0,
+        1, // Object 2
+        0.1,
+        0.9, // Object 3 (similar to 2)
       ],
     )
 
@@ -328,21 +386,26 @@ describe('AnalogicalReasoningEngine', () => {
   })
 
   it('should change behavior with temperature', () => {
-    const emb = createRandomEmbeddings(5, 20)
+    // Two identical unit vectors give a definitely positive raw similarity, so
+    // cooling the sigmoid has to push the transformed value further toward 1.
+    // Random embeddings would leave the direction of the change unpinned.
+    const emb = createDenseTensor(
+      createShape([{ name: 'x', size: 2 }, { name: 'd', size: 2 }]),
+      [1, 0, 1, 0],
+    )
     const engine = new AnalogicalReasoningEngine(emb, 1.0)
 
-    const sim1 = engine.getSimilarity(0, 1)
+    const warm = engine.getSimilarity(0, 1)
 
     engine.setTemperature(0.1)
-    const sim2 = engine.getSimilarity(0, 1)
+    const cold = engine.getSimilarity(0, 1)
 
-    // Different temperatures should give different similarities
-    // (unless they happen to be exactly 0.5)
     expect(engine.getTemperature()).toBe(0.1)
+    expect(cold).toBeGreaterThan(warm)
   })
 })
 
-describe('ReasoningModes', () => {
+describe('reasoningModes', () => {
   it('should have predefined modes', () => {
     expect(ReasoningModes.DEDUCTIVE.temperature).toBe(0)
     expect(ReasoningModes.WEAK_ANALOGY.temperature).toBe(0.1)
@@ -386,11 +449,21 @@ describe('analogyCompletion', () => {
     const emb = createDenseTensor(
       createShape([{ name: 'x', size: 5 }, { name: 'd', size: 3 }]),
       [
-        0, 0, 0, // Object 0
-        1, 0, 0, // Object 1
-        0, 1, 0, // Object 2
-        1, 1, 0, // Object 3 (= 1 + 2 - 0 conceptually)
-        0, 0, 1, // Object 4 (unrelated)
+        0,
+        0,
+        0, // Object 0
+        1,
+        0,
+        0, // Object 1
+        0,
+        1,
+        0, // Object 2
+        1,
+        1,
+        0, // Object 3 (= 1 + 2 - 0 conceptually)
+        0,
+        0,
+        1, // Object 4 (unrelated)
       ],
     )
 
@@ -431,7 +504,7 @@ describe('computeOptimalTemperature', () => {
   })
 })
 
-describe('Integration tests', () => {
+describe('integration tests', () => {
   it('should combine Tucker decomposition with analogical reasoning', () => {
     // Create a relation
     const relation = createRelation(
@@ -467,5 +540,89 @@ describe('Integration tests', () => {
 
     // Member should have higher score
     expect(in_set).toBeGreaterThan(not_in_set)
+  })
+})
+
+describe('tucker decomposition fidelity', () => {
+  /** Root-mean-square difference between two equally sized dense tensors. */
+  function rmse(a: { data: number[] }, b: { data: number[] }) {
+    const total = a.data.reduce((acc, x, i) => acc + (x - b.data[i]) ** 2, 0)
+    return Math.sqrt(total / a.data.length)
+  }
+
+  it('reconstructs exactly at full rank', () => {
+    // With one embedding dimension per input dimension the decomposition is
+    // lossless, so any reconstruction error indicates the factors are not
+    // actually fitted to the tensor.
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 3 }, { name: 'j', size: 3 }]),
+      [1, 2, 3, 4, 5, 6, 7, 8, 10],
+    )
+
+    const reconstructed = tuckerReconstruct(tuckerDecompose(tensor, [3, 3], 3))
+
+    expect(rmse(tensor, reconstructed)).toBeLessThan(1e-8)
+  })
+
+  it('reconstructs a rank-deficient tensor exactly at its true rank', () => {
+    // outer([1,2,3], [1,2]) is exactly rank 1, so rank-1 factors suffice.
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 3 }, { name: 'j', size: 2 }]),
+      [1, 2, 2, 4, 3, 6],
+    )
+
+    const reconstructed = tuckerReconstruct(tuckerDecompose(tensor, [1, 1], 5))
+
+    expect(rmse(tensor, reconstructed)).toBeLessThan(1e-8)
+  })
+
+  it('loses less at higher rank than at lower rank', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
+      [4, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1],
+    )
+
+    const coarse = rmse(tensor, tuckerReconstruct(tuckerDecompose(tensor, [1, 1], 5)))
+    const fine = rmse(tensor, tuckerReconstruct(tuckerDecompose(tensor, [3, 3], 5)))
+
+    expect(fine).toBeLessThan(coarse)
+  })
+
+  it('produces orthonormal factor columns', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 4 }, { name: 'j', size: 4 }]),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7],
+    )
+
+    const { factors } = tuckerDecompose(tensor, [2, 2], 5)
+
+    for (const factor of factors) {
+      const rows = factor.shape.indices[0].size
+      const cols = factor.shape.indices[1].size
+
+      for (let p = 0; p < cols; p++) {
+        for (let q = p; q < cols; q++) {
+          let dot = 0
+          for (let i = 0; i < rows; i++) {
+            dot += factor.data[i * cols + p] * factor.data[i * cols + q]
+          }
+          // Columns are singular vectors: unit length and mutually orthogonal.
+          expect(dot).toBeCloseTo(p === q ? 1 : 0, 8)
+        }
+      }
+    }
+  })
+
+  it('is deterministic', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 3 }, { name: 'j', size: 3 }]),
+      [1, 5, 2, 8, 3, 9, 4, 6, 7],
+    )
+
+    const first = tuckerDecompose(tensor, [2, 2], 4)
+    const second = tuckerDecompose(tensor, [2, 2], 4)
+
+    expect(Array.from(second.core.data)).toEqual(Array.from(first.core.data))
+    expect(Array.from(second.factors[0].data)).toEqual(Array.from(first.factors[0].data))
   })
 })

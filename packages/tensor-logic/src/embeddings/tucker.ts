@@ -13,15 +13,14 @@
  * - p, q, r are embedding dimensions (much smaller than i, j, k)
  */
 
-import type { DenseTensor, IndexName, SparseTensor, Tensor, TensorShape } from '../core/types'
-import { join, project } from '../core/operations'
+import type { DenseTensor, SparseTensor, Tensor, TensorShape } from '../core/types'
+
 import {
   clone,
   coordsToFlat,
   createDenseTensor,
   createShape,
   flatToCoords,
-  randn,
   toDense,
 } from '../core/types'
 
@@ -40,9 +39,13 @@ export interface TuckerDecomposition {
 }
 
 /**
- * Decompose a tensor using Tucker decomposition
+ * Decompose a tensor using Tucker decomposition.
  *
- * Uses random projections for initialization (as suggested in the paper)
+ * Initialised with HOSVD — each factor is the leading left singular vectors of
+ * the corresponding mode unfolding — then refined by higher-order orthogonal
+ * iteration (HOOI): each mode is re-fitted against the tensor projected onto
+ * the other modes. Both stages are deterministic, so the same tensor always
+ * yields the same decomposition.
  */
 export function tuckerDecompose(
   tensor: Tensor,
@@ -55,28 +58,20 @@ export function tuckerDecompose(
     throw new Error(`Expected ${dense.shape.indices.length} embedding dims, got ${embeddingDims.length}`)
   }
 
-  // Initialize factor matrices with random values
-  const factors: DenseTensor[] = dense.shape.indices.map((idx, i) => {
-    const shape = createShape([
-      { name: idx.name, size: idx.size },
-      { name: `e${i}`, size: embeddingDims[i] },
-    ])
-    const factor = randn(shape, 0, 1 / Math.sqrt(idx.size))
-    return orthogonalize(factor)
-  })
+  // HOSVD initialisation: each factor spans the dominant subspace of its mode.
+  const factors: DenseTensor[] = dense.shape.indices.map(
+    (_, mode) => leadingSingularVectors(dense, mode, embeddingDims[mode]),
+  )
 
-  // Compute initial core tensor
-  let core = computeCore(dense, factors, embeddingDims)
-
-  // Alternating least squares iterations
+  // HOOI refinement. A single mode is optimal given the others, so sweeping
+  // over the modes monotonically improves the fit.
   for (let iter = 0; iter < iterations; iter++) {
-    // Update each factor matrix
     for (let mode = 0; mode < factors.length; mode++) {
-      factors[mode] = updateFactor(dense, factors, core, mode)
+      factors[mode] = refineFactor(dense, factors, mode, embeddingDims[mode])
     }
-    // Update core
-    core = computeCore(dense, factors, embeddingDims)
   }
+
+  const core = computeCore(dense, factors)
 
   return {
     factors,
@@ -92,15 +87,16 @@ export function tuckerDecompose(
 export function tuckerReconstruct(decomposition: TuckerDecomposition): DenseTensor {
   const { factors, core, originalShape } = decomposition
 
-  // Start with core tensor
+  // X ≈ C ×₁ U₁ ×₂ U₂ ... — the exact mirror of computeCore, which projects
+  // with the transposed factors. Applying them untransposed here maps each
+  // mode back from its embedding dimension to its original size.
   let result = clone(core)
 
-  // Apply each factor matrix via tensor multiplication
-  for (let i = factors.length - 1; i >= 0; i--) {
-    result = applyFactor(result, factors[i], i)
+  for (let mode = 0; mode < factors.length; mode++) {
+    result = modeProduct(result, factors[mode], mode)
   }
 
-  // Reshape to original shape
+  // Restore the original index names; the sizes already agree by construction.
   return {
     ...result,
     shape: originalShape,
@@ -114,7 +110,6 @@ export function tuckerReconstruct(decomposition: TuckerDecomposition): DenseTens
 function computeCore(
   tensor: DenseTensor,
   factors: DenseTensor[],
-  embeddingDims: number[],
 ): DenseTensor {
   // Core = tensor ×₁ M₁ᵀ ×₂ M₂ᵀ ×₃ M₃ᵀ ...
   let result = clone(tensor)
@@ -127,32 +122,151 @@ function computeCore(
 }
 
 /**
- * Update factor matrix for a specific mode
+ * One HOOI step: re-fit a single mode against the other factors.
+ *
+ * Projecting the tensor onto every mode but `mode` leaves a smaller tensor
+ * whose dominant mode-`mode` subspace is the optimal factor, holding the
+ * others fixed.
  */
-function updateFactor(
+function refineFactor(
   tensor: DenseTensor,
   factors: DenseTensor[],
-  core: DenseTensor,
   mode: number,
+  rank: number,
 ): DenseTensor {
-  // Simplified factor update using SVD-like approach
-  // Full implementation would use proper ALS
+  let projected = clone(tensor)
 
-  const modeSize = tensor.shape.indices[mode].size
-  const embDim = factors[mode].shape.indices[1].size
+  for (let other = 0; other < factors.length; other++) {
+    if (other !== mode) {
+      projected = modeProduct(projected, transposeMatrix(factors[other]), other)
+    }
+  }
 
-  // Compute mode-n unfolding of tensor
+  return leadingSingularVectors(projected, mode, rank)
+}
+
+/**
+ * The `rank` leading left singular vectors of a tensor's mode-n unfolding,
+ * returned as the columns of an (unfolding rows x rank) matrix.
+ *
+ * These are obtained as the dominant eigenvectors of the Gram matrix
+ * X(n)·X(n)ᵀ, which shares its eigenvectors with the left singular vectors of
+ * X(n) and is only as large as the mode itself.
+ */
+function leadingSingularVectors(
+  tensor: DenseTensor,
+  mode: number,
+  rank: number,
+): DenseTensor {
   const unfolding = modeUnfold(tensor, mode)
+  const rows = unfolding.shape.indices[0].size
+  const cols = unfolding.shape.indices[1].size
 
-  // Compute Khatri-Rao product of other factors
-  const krProduct = khatriRaoProduct(factors, mode)
+  const gram: number[][] = Array.from({ length: rows }, () => Array.from({ length: rows }, () => 0))
+  for (let i = 0; i < rows; i++) {
+    for (let j = i; j < rows; j++) {
+      let sum = 0
+      for (let k = 0; k < cols; k++) {
+        sum += unfolding.data[i * cols + k] * unfolding.data[j * cols + k]
+      }
+      gram[i][j] = sum
+      gram[j][i] = sum
+    }
+  }
 
-  // Update factor via least squares
-  // In simplified form: new_factor = unfold(X) * krProduct * (krProduct^T * krProduct)^-1
-  // We use a simpler approach: orthogonalize the result
+  const { vectors } = symmetricEigen(gram)
 
-  const newFactor = randn(factors[mode].shape, 0, 1 / Math.sqrt(modeSize))
-  return orthogonalize(newFactor)
+  const shape = createShape([
+    { name: tensor.shape.indices[mode].name, size: rows },
+    { name: `e${mode}`, size: rank },
+  ])
+  const data = Array.from({ length: rows * rank }, () => 0)
+
+  // A rank wider than the mode leaves the surplus columns zero: the unfolding
+  // simply has no more independent directions to offer.
+  for (let r = 0; r < Math.min(rank, rows); r++) {
+    for (let i = 0; i < rows; i++) {
+      data[i * rank + r] = vectors[r][i]
+    }
+  }
+
+  return createDenseTensor(shape, data)
+}
+
+/**
+ * Eigendecomposition of a small symmetric matrix by cyclic Jacobi rotations.
+ *
+ * Returns eigenvalues in descending order alongside their eigenvectors, where
+ * `vectors[r]` is the eigenvector for `values[r]`. Jacobi suits this use: the
+ * Gram matrices here are symmetric positive semi-definite and no larger than a
+ * single tensor mode, where it is both simple and accurate.
+ */
+function symmetricEigen(
+  input: number[][],
+  sweeps = 60,
+  tolerance = 1e-12,
+): { values: number[], vectors: number[][] } {
+  const n = input.length
+  const a = input.map(row => [...row])
+  // Accumulates the rotations; column p holds the p-th eigenvector.
+  const v: number[][] = Array.from(
+    { length: n },
+    (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)),
+  )
+
+  for (let sweep = 0; sweep < sweeps; sweep++) {
+    let offDiagonal = 0
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) {
+        offDiagonal += a[p][q] * a[p][q]
+      }
+    }
+    if (offDiagonal <= tolerance) {
+      break
+    }
+
+    for (let p = 0; p < n - 1; p++) {
+      for (let q = p + 1; q < n; q++) {
+        if (Math.abs(a[p][q]) <= tolerance) {
+          continue
+        }
+
+        // Rotation that annihilates a[p][q], via the numerically stable root
+        // of t^2 + 2*theta*t - 1 = 0.
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q])
+        const sign = theta >= 0 ? 1 : -1
+        const t = sign / (Math.abs(theta) + Math.sqrt(theta * theta + 1))
+        const c = 1 / Math.sqrt(t * t + 1)
+        const s = t * c
+
+        for (let k = 0; k < n; k++) {
+          const akp = a[k][p]
+          const akq = a[k][q]
+          a[k][p] = c * akp - s * akq
+          a[k][q] = s * akp + c * akq
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = a[p][k]
+          const aqk = a[q][k]
+          a[p][k] = c * apk - s * aqk
+          a[q][k] = s * apk + c * aqk
+        }
+        for (let k = 0; k < n; k++) {
+          const vkp = v[k][p]
+          const vkq = v[k][q]
+          v[k][p] = c * vkp - s * vkq
+          v[k][q] = s * vkp + c * vkq
+        }
+      }
+    }
+  }
+
+  const order = Array.from({ length: n }, (_, i) => i).sort((x, y) => a[y][y] - a[x][x])
+
+  return {
+    values: order.map(i => a[i][i]),
+    vectors: order.map(column => v.map(row => row[column])),
+  }
 }
 
 /**
@@ -178,9 +292,6 @@ function modeProduct(
   const outData = new Array(outShape.size).fill(0)
 
   // Compute mode-n product
-  const strides = computeStrides(tensorShape)
-  const outStrides = computeStrides(outShape)
-
   for (let outI = 0; outI < outShape.size; outI++) {
     const outCoords = flatToCoords(outI, outShape)
     let sum = 0
@@ -199,18 +310,6 @@ function modeProduct(
   }
 
   return createDenseTensor(outShape, outData)
-}
-
-/**
- * Apply factor matrix to tensor
- */
-function applyFactor(
-  tensor: DenseTensor,
-  factor: DenseTensor,
-  mode: number,
-): DenseTensor {
-  // Simplified: treat as matrix multiplication along the mode
-  return modeProduct(tensor, transposeMatrix(factor), mode)
 }
 
 /**
@@ -268,109 +367,6 @@ function modeUnfold(tensor: DenseTensor, mode: number): DenseTensor {
   }
 
   return createDenseTensor(outShape, outData)
-}
-
-/**
- * Khatri-Rao product of factor matrices (excluding one mode)
- */
-function khatriRaoProduct(factors: DenseTensor[], excludeMode: number): DenseTensor {
-  const included = factors.filter((_, i) => i !== excludeMode)
-
-  if (included.length === 0) {
-    return createDenseTensor(createShape([{ name: '_', size: 1 }]), [1])
-  }
-
-  let result = included[0]
-  for (let i = 1; i < included.length; i++) {
-    result = khatriRao(result, included[i])
-  }
-
-  return result
-}
-
-/**
- * Khatri-Rao product of two matrices
- */
-function khatriRao(a: DenseTensor, b: DenseTensor): DenseTensor {
-  const rowsA = a.shape.indices[0].size
-  const colsA = a.shape.indices[1].size
-  const rowsB = b.shape.indices[0].size
-  const colsB = b.shape.indices[1].size
-
-  if (colsA !== colsB) {
-    throw new Error('Matrices must have same number of columns for Khatri-Rao product')
-  }
-
-  const outShape = createShape([
-    { name: '_row', size: rowsA * rowsB },
-    { name: '_col', size: colsA },
-  ])
-  const outData = new Array(rowsA * rowsB * colsA).fill(0)
-
-  for (let j = 0; j < colsA; j++) {
-    for (let ia = 0; ia < rowsA; ia++) {
-      for (let ib = 0; ib < rowsB; ib++) {
-        const outRow = ia * rowsB + ib
-        outData[outRow * colsA + j] = a.data[ia * colsA + j] * b.data[ib * colsB + j]
-      }
-    }
-  }
-
-  return createDenseTensor(outShape, outData)
-}
-
-/**
- * Orthogonalize matrix columns using Gram-Schmidt
- */
-function orthogonalize(matrix: DenseTensor): DenseTensor {
-  const rows = matrix.shape.indices[0].size
-  const cols = matrix.shape.indices[1].size
-  const data = [...matrix.data]
-
-  for (let j = 0; j < cols; j++) {
-    // Subtract projections onto previous columns
-    for (let k = 0; k < j; k++) {
-      let dot = 0
-      let normK = 0
-      for (let i = 0; i < rows; i++) {
-        dot += data[i * cols + j] * data[i * cols + k]
-        normK += data[i * cols + k] * data[i * cols + k]
-      }
-      if (normK > 1e-10) {
-        const proj = dot / normK
-        for (let i = 0; i < rows; i++) {
-          data[i * cols + j] -= proj * data[i * cols + k]
-        }
-      }
-    }
-
-    // Normalize column
-    let norm = 0
-    for (let i = 0; i < rows; i++) {
-      norm += data[i * cols + j] * data[i * cols + j]
-    }
-    norm = Math.sqrt(norm)
-    if (norm > 1e-10) {
-      for (let i = 0; i < rows; i++) {
-        data[i * cols + j] /= norm
-      }
-    }
-  }
-
-  return createDenseTensor(matrix.shape, data)
-}
-
-/**
- * Compute strides for a tensor shape
- */
-function computeStrides(shape: TensorShape): number[] {
-  const strides = new Array(shape.indices.length)
-  let stride = 1
-  for (let i = shape.indices.length - 1; i >= 0; i--) {
-    strides[i] = stride
-    stride *= shape.indices[i].size
-  }
-  return strides
 }
 
 /**
@@ -434,7 +430,6 @@ export function embedRelation(
   relation: SparseTensor,
   embeddings: DenseTensor,
 ): DenseTensor {
-  const dense = toDense(relation)
   const embDim = embeddings.shape.indices[1].size
 
   // Create output shape for embedded relation

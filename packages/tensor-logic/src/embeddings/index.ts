@@ -4,6 +4,20 @@
  * Exports Tucker decomposition and analogical reasoning components
  */
 
+// Analogical Reasoning
+export type { ReasoningMode } from './analogical'
+
+export {
+  AnalogicalReasoningEngine,
+  analogyCompletion,
+  computeOptimalTemperature,
+  computeSimilarityMatrix,
+  createAnalogicalEngine,
+  multiHopAnalogy,
+  ReasoningModes,
+  temperatureSigmoid,
+} from './analogical'
+
 // Tucker Decomposition
 export type { TuckerDecomposition } from './tucker'
 
@@ -17,17 +31,3 @@ export {
   tuckerError,
   tuckerReconstruct,
 } from './tucker'
-
-// Analogical Reasoning
-export type { ReasoningMode } from './analogical'
-
-export {
-  analogyCompletion,
-  AnalogicalReasoningEngine,
-  computeOptimalTemperature,
-  computeSimilarityMatrix,
-  createAnalogicalEngine,
-  multiHopAnalogy,
-  ReasoningModes,
-  temperatureSigmoid,
-} from './analogical'

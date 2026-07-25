@@ -10,11 +10,10 @@
 import type {
   DenseTensor,
   IndexName,
-  SparseTensor,
   Tensor,
   TensorIndex,
-  TensorShape,
 } from './types'
+
 import {
   clone,
   coordsToFlat,
@@ -126,7 +125,6 @@ export function join(
 
     // Build index maps
     const aIndexMap = new Map(indicesA.map((idx, i) => [idx.name, i]))
-    const bIndexMap = new Map(indicesB.map((idx, i) => [idx.name, i]))
 
     // Compute sizes for iteration
     const commonSizes = common.map((idx) => {
@@ -134,12 +132,6 @@ export function join(
       return indicesA[aIdx].size
     })
     const commonTotal = commonSizes.reduce((a, b) => a * b, 1)
-
-    const uniqueASizes = uniqueA.map(idx => idx.size)
-    const uniqueATotal = uniqueASizes.reduce((a, b) => a * b, 1)
-
-    const uniqueBSizes = uniqueB.map(idx => idx.size)
-    const uniqueBTotal = uniqueBSizes.reduce((a, b) => a * b, 1)
 
     // Iterate over output coordinates
     for (let outI = 0; outI < outShape.size; outI++) {
@@ -628,7 +620,6 @@ export function avgReduce(
 ): DenseTensor<number> {
   const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
 
-  const keepIndices = dense.shape.indices.filter(idx => targetIndices.includes(idx.name))
   const sumIndices = dense.shape.indices.filter(idx => !targetIndices.includes(idx.name))
   const sumSize = sumIndices.reduce((acc, idx) => acc * idx.size, 1)
 

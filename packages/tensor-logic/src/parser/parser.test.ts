@@ -4,7 +4,7 @@ import { getIndexNames, getTensorNames, printExpression, printStatement } from '
 import { parse, parseEquation, ParseError, parseRule } from './parser'
 import { tokenize, TokenType } from './tokenizer'
 
-describe('Tokenizer', () => {
+describe('tokenizer', () => {
   it('should tokenize basic equation', () => {
     const tokens = tokenize('Y = W[i] * X[i]')
 
@@ -53,7 +53,7 @@ describe('Tokenizer', () => {
   })
 })
 
-describe('Parser - Basic Equations', () => {
+describe('parser - Basic Equations', () => {
   it('should parse simple assignment', () => {
     const eq = parseEquation('Y = X')
 
@@ -91,7 +91,7 @@ describe('Parser - Basic Equations', () => {
   })
 })
 
-describe('Parser - Expressions', () => {
+describe('parser - Expressions', () => {
   it('should parse addition', () => {
     const eq = parseEquation('Y = A + B')
 
@@ -170,7 +170,7 @@ describe('Parser - Expressions', () => {
   })
 })
 
-describe('Parser - Function Calls', () => {
+describe('parser - Function Calls', () => {
   it('should parse function with single argument', () => {
     const eq = parseEquation('Y = sigmoid(X)')
 
@@ -223,7 +223,7 @@ describe('Parser - Function Calls', () => {
   })
 })
 
-describe('Parser - Datalog Rules', () => {
+describe('parser - Datalog Rules', () => {
   it('should parse simple rule', () => {
     const rule = parseRule('Aunt(x,z) <- Sister(x,y), Parent(y,z)')
 
@@ -248,7 +248,7 @@ describe('Parser - Datalog Rules', () => {
   })
 })
 
-describe('Parser - Full Programs', () => {
+describe('parser - Full Programs', () => {
   it('should parse multiple equations', () => {
     const program = parse(`
       X[i,1] = sigmoid(W[i,j] * X[j,0])
@@ -283,7 +283,7 @@ describe('Parser - Full Programs', () => {
   })
 })
 
-describe('AST Utilities', () => {
+describe('aST Utilities', () => {
   it('should get tensor names from expression', () => {
     const eq = parseEquation('Y = W[i,j] * X[j] + B[i]')
     const names = getTensorNames(eq.rhs)
@@ -322,7 +322,7 @@ describe('AST Utilities', () => {
   })
 })
 
-describe('Parser Error Handling', () => {
+describe('parser Error Handling', () => {
   it('should throw on missing equals', () => {
     expect(() => parseEquation('Y X')).toThrow(ParseError)
   })
@@ -347,7 +347,7 @@ describe('Parser Error Handling', () => {
   })
 })
 
-describe('Complex Examples', () => {
+describe('complex Examples', () => {
   it('should parse attention mechanism', () => {
     const eq = parseEquation('Attn[b,h,p,d] = softmax(Q[b,h,p,k] * K[b,h,q,k]) * V[b,h,q,d]')
 
