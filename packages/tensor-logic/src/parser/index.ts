@@ -4,10 +4,6 @@
  * Exports the tokenizer, AST types, and parser
  */
 
-// Tokenizer
-export { Tokenizer, tokenize, TokenType } from './tokenizer'
-export type { Token } from './tokenizer'
-
 // AST
 export type {
   ASTVisitor,
@@ -24,7 +20,6 @@ export type {
   TensorRef,
   UnaryOp,
 } from './ast'
-
 export {
   expressionsEqual,
   getIndexNames,
@@ -37,3 +32,8 @@ export {
 
 // Parser
 export { parse, parseEquation, ParseError, Parser, parseRule } from './parser'
+
+// Tokenizer
+export { tokenize, Tokenizer, TokenType } from './tokenizer'
+
+export type { Token } from './tokenizer'

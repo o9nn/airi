@@ -22,20 +22,17 @@
  * @see https://arxiv.org/abs/2510.12269
  */
 
-// Core tensor types and operations
-export * from './core'
-
-// Parser for tensor logic equations
-export * from './parser'
-
-// Inference engines (forward and backward chaining)
-export * from './inference'
-
 // Automatic differentiation
 export * from './autodiff'
 
-// Embeddings and analogical reasoning
-export * from './embeddings'
+export {
+  // Autodiff
+  DifferentiableEngine,
+  LossFunctions,
+} from './autodiff'
+
+// Core tensor types and operations
+export * from './core'
 
 // Re-export commonly used types and functions at top level
 export {
@@ -55,11 +52,17 @@ export {
   step,
 } from './core'
 
+// Embeddings and analogical reasoning
+export * from './embeddings'
+
 export {
-  // Parser
-  parse,
-  parseEquation,
-} from './parser'
+  // Embeddings
+  AnalogicalReasoningEngine,
+  tuckerDecompose,
+} from './embeddings'
+
+// Inference engines (forward and backward chaining)
+export * from './inference'
 
 export {
   // Inference
@@ -67,17 +70,14 @@ export {
   ForwardChainingEngine,
 } from './inference'
 
-export {
-  // Autodiff
-  DifferentiableEngine,
-  LossFunctions,
-} from './autodiff'
+// Parser for tensor logic equations
+export * from './parser'
 
 export {
-  // Embeddings
-  AnalogicalReasoningEngine,
-  tuckerDecompose,
-} from './embeddings'
+  // Parser
+  parse,
+  parseEquation,
+} from './parser'
 
 /**
  * Version of the tensor-logic package

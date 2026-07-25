@@ -110,7 +110,15 @@ export interface SparseTensor<T extends number | boolean = boolean> {
 /**
  * Union type for all tensor representations
  */
-export type Tensor<T extends number | boolean = number> = DenseTensor<T> | SparseTensor<T>
+/**
+ * Any tensor the operation layer accepts.
+ *
+ * Boolean sparse tensors are first class: a relation *is* a Boolean tensor,
+ * which is precisely what makes a logical rule and an einsum the same
+ * operation. Numeric operations densify such a tensor first, coercing
+ * true/false to 1/0.
+ */
+export type Tensor = DenseTensor<number> | SparseTensor<number> | SparseTensor<boolean>
 
 /**
  * Creates a new dense tensor with given shape and optional initial data
@@ -287,12 +295,14 @@ export function dims(tensor: Tensor): number[] {
 /**
  * Converts a sparse tensor to dense
  */
-export function toDense(tensor: SparseTensor): DenseTensor<number> {
-  const data = new Array(tensor.shape.size).fill(tensor.defaultValue ? 1 : 0)
+export function toDense(tensor: SparseTensor<number | boolean>): DenseTensor<number> {
+  // Number() rather than a truthiness test: a Boolean relation maps to 1/0,
+  // but a numeric sparse tensor must keep its magnitudes (0.7 stays 0.7).
+  const data = new Array(tensor.shape.size).fill(Number(tensor.defaultValue))
 
   for (const entry of tensor.entries) {
     const flatIdx = coordsToFlat(entry.coords, tensor.shape)
-    data[flatIdx] = entry.value ? 1 : 0
+    data[flatIdx] = Number(entry.value)
   }
 
   return {

@@ -1,17 +1,17 @@
+import type { DenseTensor, Tensor } from '../core/types'
+
 import { describe, expect, it } from 'vitest'
 
 import { createDenseTensor, createShape } from '../core/types'
-
 import {
   AdamOptimizer,
   createDifferentiableEngine,
-  DifferentiableEngine,
   GradientTape,
   LossFunctions,
   SGDOptimizer,
 } from './autodiff'
 
-describe('LossFunctions', () => {
+describe('lossFunctions', () => {
   it('should compute MSE loss', () => {
     const predictions = createDenseTensor(
       createShape([{ name: 'i', size: 3 }]),
@@ -84,7 +84,7 @@ describe('LossFunctions', () => {
   })
 })
 
-describe('GradientTape', () => {
+describe('gradientTape', () => {
   it('should record tensor values', () => {
     const tape = new GradientTape()
     const tensor = createDenseTensor(createShape([{ name: 'i', size: 2 }]), [1, 2])
@@ -116,7 +116,7 @@ describe('GradientTape', () => {
   })
 })
 
-describe('DifferentiableEngine', () => {
+describe('differentiableEngine', () => {
   it('should execute forward pass', () => {
     const engine = createDifferentiableEngine('Y = sigmoid(X)')
 
@@ -164,7 +164,7 @@ describe('DifferentiableEngine', () => {
   })
 })
 
-describe('SGDOptimizer', () => {
+describe('sGDOptimizer', () => {
   it('should update parameters', () => {
     const optimizer = new SGDOptimizer(0.1, 0)
 
@@ -209,7 +209,7 @@ describe('SGDOptimizer', () => {
   })
 })
 
-describe('AdamOptimizer', () => {
+describe('adamOptimizer', () => {
   it('should update parameters', () => {
     const optimizer = new AdamOptimizer(0.1)
 
@@ -250,14 +250,13 @@ describe('AdamOptimizer', () => {
   })
 })
 
-describe('Training loop', () => {
-  it('should reduce loss over iterations', () => {
+describe('training loop', () => {
+  it('should produce a valid sigmoid output from a forward pass', () => {
     const engine = createDifferentiableEngine(`
       Y = sigmoid(W[i] * X[i])
     `)
 
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
-    const target = createDenseTensor(createShape([]), [0.9])
 
     engine.setInput('X', X)
     engine.setParameter('W', createDenseTensor(
@@ -265,45 +264,48 @@ describe('Training loop', () => {
       [0.1, 0.1, 0.1],
     ))
 
-    // Initial forward pass
     engine.forward()
-    const initialY = engine.getTensor('Y')!
-    const initialPred = (initialY as any).data[0]
+    const prediction = (engine.getTensor('Y') as any).data[0]
 
-    // Training would happen here...
-    // For now, just verify the setup works
-    expect(initialPred).toBeGreaterThan(0)
-    expect(initialPred).toBeLessThan(1)
+    // W·X = 0.6, so the sigmoid must land strictly inside (0, 1) at 0.6457.
+    expect(prediction).toBeCloseTo(0.6456563, 6)
   })
 
-  it('should support simple gradient descent', () => {
-    // Train a simple linear model: y = wx, target = 2x
-    const W = createDenseTensor(createShape([]), [0.5])
-    const X = createDenseTensor(createShape([]), [1])
-    const target = createDenseTensor(createShape([]), [2])
+  it('should reduce loss monotonically under SGD', () => {
+    // Fit W directly to a target vector. Because the model is the identity,
+    // dLoss/dW is exactly the MSE gradient, so this drives the package's own
+    // LossFunctions and SGDOptimizer rather than re-deriving the maths here.
+    const target = createDenseTensor(
+      createShape([{ name: 'i', size: 3 }]),
+      [1, -2, 0.5],
+    )
+    const parameters = new Map<string, Tensor>([
+      ['W', createDenseTensor(createShape([{ name: 'i', size: 3 }]), [0, 0, 0])],
+    ])
+    const optimizer = new SGDOptimizer(0.5)
 
-    const lr = 0.1
-
-    for (let i = 0; i < 100; i++) {
-      // Forward: y = wx
-      const y = W.data[0] * X.data[0]
-
-      // Loss: (y - target)^2
-      const error = y - target.data[0]
-
-      // Gradient: d(loss)/dW = 2 * error * x
-      const grad = 2 * error * X.data[0]
-
-      // Update
-      W.data[0] -= lr * grad
+    const losses: number[] = []
+    for (let step = 0; step < 40; step++) {
+      const { loss, gradient } = LossFunctions.mse(parameters.get('W')!, target)
+      losses.push(loss.data[0])
+      optimizer.step(parameters, new Map<string, Tensor>([['W', gradient]]))
     }
 
-    // W should converge to 2
-    expect(W.data[0]).toBeCloseTo(2, 1)
+    // Gradient descent on a convex quadratic must never increase the loss.
+    for (let step = 1; step < losses.length; step++) {
+      expect(losses[step]).toBeLessThanOrEqual(losses[step - 1] + 1e-12)
+    }
+
+    expect(losses[losses.length - 1]).toBeLessThan(1e-6)
+
+    const W = parameters.get('W') as DenseTensor<number>
+    expect(W.data[0]).toBeCloseTo(1, 3)
+    expect(W.data[1]).toBeCloseTo(-2, 3)
+    expect(W.data[2]).toBeCloseTo(0.5, 3)
   })
 })
 
-describe('Gradient computation edge cases', () => {
+describe('gradient computation edge cases', () => {
   it('should handle zero gradients', () => {
     const engine = createDifferentiableEngine('Y = X')
 

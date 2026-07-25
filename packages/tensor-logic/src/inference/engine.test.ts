@@ -5,16 +5,13 @@ import {
   createRelation,
   createShape,
 } from '../core/types'
-
 import {
-  BackwardChainingEngine,
   createBackwardEngine,
   createForwardEngine,
   execute,
-  ForwardChainingEngine,
 } from './engine'
 
-describe('ForwardChainingEngine', () => {
+describe('forwardChainingEngine', () => {
   it('should execute simple assignment', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
@@ -152,7 +149,7 @@ describe('ForwardChainingEngine', () => {
   })
 })
 
-describe('BackwardChainingEngine', () => {
+describe('backwardChainingEngine', () => {
   it('should query defined tensor', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
@@ -218,43 +215,68 @@ describe('BackwardChainingEngine', () => {
   })
 })
 
-describe('Datalog-style reasoning', () => {
+describe('datalog-style reasoning', () => {
   it('should execute transitive closure', () => {
     // Parent relation: 0->1, 1->2
     const Parent = createRelation(['x', 'y'], [[0, 1], [1, 2]], [3, 3])
 
     // Ancestor(x,z) <- Parent(x,y), Parent(y,z)
-    // This should derive: 0->2 (grandparent)
-
+    // The chain 0->1->2 admits exactly one grandparent fact: 0->2.
     const engine = createForwardEngine(
-      'Ancestor = step(Parent[x,y] * Parent[y,z])',
+      'Ancestor[x,z] = step(Parent[x,y] * Parent[y,z])',
       new Map([['Parent', Parent]]),
       { maxIterations: 10 },
     )
 
     const result = engine.execute()
-    const Ancestor = result.tensors.get('Ancestor')
+    const Ancestor = result.tensors.get('Ancestor') as any
 
     expect(Ancestor).toBeDefined()
-    // Should have 0->2 connection
+    expect(Ancestor.shape.indices.map((i: any) => i.name)).toEqual(['x', 'z'])
+    expect(Array.from(Ancestor.data)).toEqual([
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ])
   })
 
   it('should handle sibling relation', () => {
-    // Parent: 0->1, 0->2 (siblings 1 and 2)
+    // Parent: 0->1, 0->2 (so 1 and 2 share a parent)
     const Parent = createRelation(['x', 'y'], [[0, 1], [0, 2]], [3, 3])
 
-    // Sibling(x,y) <- Parent(p,x), Parent(p,y), x != y
+    // Sibling(x,y) <- Parent(p,x), Parent(p,y)
+    // Without an x != y guard this also derives the reflexive pairs (1,1) and
+    // (2,2), which is the expected meaning of the rule as written.
     const engine = createForwardEngine(
-      'Sibling = step(Parent[p,x] * Parent[p,y])',
+      'Sibling[x,y] = step(Parent[p,x] * Parent[p,y])',
       new Map([['Parent', Parent]]),
     )
 
     const result = engine.execute()
-    expect(result.tensors.has('Sibling')).toBe(true)
+    const Sibling = result.tensors.get('Sibling') as any
+
+    expect(Sibling).toBeDefined()
+    expect(Array.from(Sibling.data)).toEqual([
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+    ])
   })
 })
 
-describe('Engine with different nonlinearities', () => {
+describe('engine with different nonlinearities', () => {
   const X = createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3])
 
   it('should handle leaky_relu', () => {
@@ -302,7 +324,7 @@ describe('Engine with different nonlinearities', () => {
   })
 })
 
-describe('Engine step method', () => {
+describe('engine step method', () => {
   it('should execute single step', () => {
     const X = createDenseTensor(createShape([{ name: 'i', size: 2 }]), [1, 2])
 

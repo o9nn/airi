@@ -37,7 +37,8 @@ import type {
   UnaryOp,
 } from './ast'
 import type { Token } from './tokenizer'
-import { TokenType, tokenize } from './tokenizer'
+
+import { tokenize, TokenType } from './tokenizer'
 
 /**
  * Parse error with location information
@@ -107,10 +108,12 @@ export class Parser {
 
       while (pos < this.tokens.length) {
         const t = this.tokens[pos]
-        if (t.type === TokenType.LPAREN)
+        if (t.type === TokenType.LPAREN) {
           parenDepth++
-        else if (t.type === TokenType.RPAREN)
+        }
+        else if (t.type === TokenType.RPAREN) {
           parenDepth--
+        }
         else if (t.type === TokenType.ARROW && parenDepth === 0) {
           // This is a Datalog rule
           this.position = saved
@@ -287,7 +290,6 @@ export class Parser {
 
     // Identifier - could be tensor ref, function call, or relation
     if (this.check(TokenType.IDENTIFIER)) {
-      const name = this.current().value
       const nextPos = this.position + 1
       const next = nextPos < this.tokens.length ? this.tokens[nextPos] : null
 
