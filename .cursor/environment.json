@@ -1,0 +1,16 @@
+{
+  "name": "Project AIRI",
+  "install": "export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install 24.9.0 && nvm alias default 24.9.0 && export PATH=\"$NVM_DIR/versions/node/v24.9.0/bin:$PATH\" && corepack enable && pnpm install --frozen-lockfile",
+  "terminals": [
+    {
+      "name": "stage-web",
+      "command": "export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && export PATH=\"$NVM_DIR/versions/node/v24.9.0/bin:$PATH\" && pnpm dev"
+    }
+  ],
+  "ports": [
+    {
+      "name": "stage-web",
+      "port": 5173
+    }
+  ]
+}
