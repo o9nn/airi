@@ -19,6 +19,18 @@ import * as v from 'valibot'
 const execFileAsync = promisify(execFile)
 const inputSchema = v.object({ argv: v.pipe(v.array(v.pipe(v.string(), v.maxLength(16384), v.check(value => !value.includes('\0')))), v.minLength(2), v.maxLength(128)) })
 
+/** Host-owned AUV env. Inherited AUV_* values must not retarget the private daemon or store. */
+export function createComputerUseChildEnv(env: NodeJS.ProcessEnv, options: { endpoint: string, storeRoot: string }): NodeJS.ProcessEnv {
+  const childEnv = { ...env }
+  for (const key of Object.keys(childEnv)) {
+    if (key.startsWith('AUV_'))
+      delete childEnv[key]
+  }
+  childEnv.AUV_ENDPOINT = options.endpoint
+  childEnv.AUV_STORE_ROOT = options.storeRoot
+  return childEnv
+}
+
 /** Owns one private daemon and serializes desktop operations across renderer windows. */
 export function createComputerUseRuntime(options: { binaryPath: string, storeRoot: string }) {
   let daemon: AuvDaemon | undefined
@@ -103,7 +115,10 @@ export function createComputerUseRuntime(options: { binaryPath: string, storeRoo
       let exitCode = 0
       try {
         ({ stdout, stderr } = await execFileAsync(options.binaryPath, command, {
-          env: { ...process.env, AUV_ENDPOINT: active.connectionOptions.endpoint, AUV_CONTEXT: undefined },
+          env: createComputerUseChildEnv(process.env, {
+            endpoint: active.connectionOptions.endpoint,
+            storeRoot: options.storeRoot,
+          }),
           encoding: 'utf8',
           timeout: 120000,
           maxBuffer: 4 * 1024 * 1024,

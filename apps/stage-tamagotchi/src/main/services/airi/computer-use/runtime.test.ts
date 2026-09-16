@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { binaryPath } from '@auv-js/cli/binary'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createComputerUseRuntime } from './runtime'
+import { createComputerUseChildEnv, createComputerUseRuntime } from './runtime'
 
 describe('computer use runtime', () => {
   let directory: string
@@ -29,6 +29,23 @@ describe('computer use runtime', () => {
     await expect(runtime.run({ argv: ['invoke', 'window.list', '--store-root', 'elsewhere'] })).rejects.toThrow('managed by AIRI')
     await expect(runtime.run({ argv: ['invoke', 'scan.frame'] })).rejects.toThrow('Use invoke')
     await expect(runtime.run({ argv: ['invoke', 5] })).rejects.toThrow()
+  })
+
+  it('drops inherited AUV routing and storage env vars', () => {
+    const env = createComputerUseChildEnv({
+      PATH: '/bin',
+      AUV_ENDPOINT: 'unix://other',
+      AUV_STORE_ROOT: '/tmp/other',
+      AUV_DEVICE: 'other-device',
+      AUV_RUN: 'other-run',
+      AUV_CONTEXT: 'other-context',
+    }, { endpoint: 'unix://owned', storeRoot: '/tmp/airi-store' })
+    expect(env.PATH).toBe('/bin')
+    expect(env.AUV_ENDPOINT).toBe('unix://owned')
+    expect(env.AUV_STORE_ROOT).toBe('/tmp/airi-store')
+    expect(env.AUV_DEVICE).toBeUndefined()
+    expect(env.AUV_RUN).toBeUndefined()
+    expect(env.AUV_CONTEXT).toBeUndefined()
   })
 
   it('reads screenshot bytes and rejects non-images and paths outside the artifact store', async () => {

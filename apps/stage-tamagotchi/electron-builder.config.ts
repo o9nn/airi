@@ -210,6 +210,7 @@ export default {
     },
     extendInfo: {
       NSAppleEventsUsageDescription: 'AIRI uses Automation to control apps for computer-use tasks.',
+      NSScreenCaptureUsageDescription: 'AIRI uses Screen Recording to capture the desktop for computer-use tasks.',
       NSMicrophoneUsageDescription: 'AIRI requires microphone access for voice interaction',
       NSSpeechRecognitionUsageDescription: 'AIRI uses Apple Speech to transcribe voice interactions on this device',
       NSCameraUsageDescription: 'AIRI requires camera access for vision understanding',
