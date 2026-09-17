@@ -39,6 +39,7 @@ import ResourceStatusIsland from '../components/stage-islands/resource-status-is
 
 import { electronOpenOnboarding } from '../../shared/eventa'
 import { useModelSettingsRuntimeOwner } from '../composables/model-settings-runtime-owner'
+import { usePointerOverElement } from '../composables/use-pointer-over-element'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { resolveFadeOnHoverInteraction } from '../utils/fade-on-hover'
@@ -132,11 +133,10 @@ const isTransparent = computed(() => {
  * DOM overlay, so a button, a toast or a portaled panel floating over blank canvas
  * would read as empty space and lose its clicks. Ask the document what is really under
  * the cursor instead. This is a hit test, not an event, so it still answers while the
- * window is click-through.
+ * window is click-through. Cursor coordinates do not change when an overlay appears
+ * under a still pointer, so the hit test also re-runs after document mutations.
  */
-const isPointerOverStageCanvas = computed(() =>
-  document.elementFromPoint(relativeMouseX.value, relativeMouseY.value) === stageCanvas.value,
-)
+const isPointerOverStageCanvas = usePointerOverElement(stageCanvas, relativeMouseX, relativeMouseY)
 /**
  * Drives native click-through, and runs whether or not Auto Hide is on.
  *
