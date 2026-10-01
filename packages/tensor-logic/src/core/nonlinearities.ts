@@ -151,62 +151,125 @@ export function tanh(tensor: Tensor): DenseTensor<number> {
 }
 
 /**
- * Softmax: normalized exponential along specified index
- * softmax(x)_i = e^(x_i) / Σ_j e^(x_j)
+ * Visit each independent slice along `axisName`, handing the callback the flat
+ * indices of that slice's elements.
+ *
+ * Softmax and its relatives normalise over one axis at a time: every other
+ * combination of indices forms its own group. Routing the forward passes and
+ * their gradients through a single traversal is what keeps them grouped
+ * identically — a gradient that grouped differently from its forward pass
+ * would be wrong in a way no shape check could catch.
+ *
+ * The index array is reused between groups, so callers must read it rather
+ * than retain it.
  */
-export function softmax(tensor: Tensor, axisIndex?: IndexName): DenseTensor<number> {
-  const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
-
-  // If no axis specified, apply to last dimension
-  const axisName = axisIndex ?? dense.indexNames[dense.indexNames.length - 1]
-  const axisDim = dense.shape.indices.findIndex(i => i.name === axisName)
+function forEachAxisGroup(
+  tensor: DenseTensor<number>,
+  axisIndex: IndexName | undefined,
+  visit: (indices: number[]) => void,
+): void {
+  // Default to the last dimension, the conventional softmax axis.
+  const axisName = axisIndex ?? tensor.indexNames[tensor.indexNames.length - 1]
+  const axisDim = tensor.shape.indices.findIndex(i => i.name === axisName)
 
   if (axisDim < 0) {
     throw new Error(`Index ${axisName} not found`)
   }
 
-  const axisSize = dense.shape.indices[axisDim].size
-  const outData = [...dense.data]
-
-  // Group by all dimensions except axis
-  const outerSize = dense.data.length / axisSize
-  const strides = computeStrides(dense.shape)
+  const axisSize = tensor.shape.indices[axisDim].size
+  const strides = computeStrides(tensor.shape)
   const axisStride = strides[axisDim]
+  const outerSize = tensor.data.length / axisSize
+  const indices = new Array<number>(axisSize)
 
-  // For each position except along the axis
   for (let outer = 0; outer < outerSize; outer++) {
-    // Compute starting index for this group
+    // Decode `outer` into coordinates on every dimension but the axis.
     let startIdx = 0
     let remaining = outer
-    for (let d = dense.shape.indices.length - 1; d >= 0; d--) {
-      if (d === axisDim)
+    for (let d = tensor.shape.indices.length - 1; d >= 0; d--) {
+      if (d === axisDim) {
         continue
-      const size = dense.shape.indices[d].size
-      const coord = remaining % size
+      }
+      const size = tensor.shape.indices[d].size
+      startIdx += (remaining % size) * strides[d]
       remaining = Math.floor(remaining / size)
-      startIdx += coord * strides[d]
     }
 
-    // Find max for numerical stability
+    for (let i = 0; i < axisSize; i++) {
+      indices[i] = startIdx + i * axisStride
+    }
+
+    visit(indices)
+  }
+}
+
+/**
+ * Softmax: normalized exponential along specified index
+ * softmax(x)_i = e^(x_i) / Σ_j e^(x_j)
+ */
+export function softmax(tensor: Tensor, axisIndex?: IndexName): DenseTensor<number> {
+  const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
+  const outData = [...dense.data]
+
+  forEachAxisGroup(dense, axisIndex, (indices) => {
+    // Subtract the group maximum before exponentiating, for stability.
     let maxVal = Number.NEGATIVE_INFINITY
-    for (let i = 0; i < axisSize; i++) {
-      maxVal = Math.max(maxVal, dense.data[startIdx + i * axisStride])
+    for (const idx of indices) {
+      maxVal = Math.max(maxVal, dense.data[idx])
     }
 
-    // Compute exp and sum
     let sumExp = 0
-    for (let i = 0; i < axisSize; i++) {
-      const idx = startIdx + i * axisStride
+    for (const idx of indices) {
       outData[idx] = Math.exp(dense.data[idx] - maxVal)
       sumExp += outData[idx]
     }
 
-    // Normalize
-    for (let i = 0; i < axisSize; i++) {
-      const idx = startIdx + i * axisStride
+    for (const idx of indices) {
       outData[idx] /= sumExp
     }
+  })
+
+  return createDenseTensor(dense.shape, outData)
+}
+
+/**
+ * Vector-Jacobian product for softmax: the gradient with respect to the input,
+ * given an upstream gradient on the output.
+ *
+ * With y = softmax(x), the Jacobian is dy_j/dx_i = y_i(d_ij - y_j), so
+ * propagating an upstream gradient g collapses to
+ *
+ *   dx_i = y_i * (g_i - SUM_j g_j y_j)
+ *
+ * where the sum runs over the group the forward pass normalised, never the
+ * whole tensor. Each group's terms sum to zero, so a uniform upstream gradient
+ * yields no update at all — which is right, since adding a constant to every
+ * logit leaves softmax unchanged.
+ */
+export function softmaxGradient(
+  tensor: Tensor,
+  upstream: Tensor,
+  axisIndex?: IndexName,
+): DenseTensor<number> {
+  const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
+  const denseUpstream = upstream.type === 'sparse' ? toDense(upstream) : upstream
+
+  if (denseUpstream.data.length !== dense.data.length) {
+    throw new Error('Softmax gradient requires an upstream gradient of the same size')
   }
+
+  const output = softmax(dense, axisIndex)
+  const outData = Array.from({ length: dense.data.length }, () => 0)
+
+  forEachAxisGroup(dense, axisIndex, (indices) => {
+    let dot = 0
+    for (const idx of indices) {
+      dot += denseUpstream.data[idx] * output.data[idx]
+    }
+    for (const idx of indices) {
+      outData[idx] = output.data[idx] * (denseUpstream.data[idx] - dot)
+    }
+  })
 
   return createDenseTensor(dense.shape, outData)
 }
@@ -216,51 +279,24 @@ export function softmax(tensor: Tensor, axisIndex?: IndexName): DenseTensor<numb
  */
 export function logSoftmax(tensor: Tensor, axisIndex?: IndexName): DenseTensor<number> {
   const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
-
-  const axisName = axisIndex ?? dense.indexNames[dense.indexNames.length - 1]
-  const axisDim = dense.shape.indices.findIndex(i => i.name === axisName)
-
-  if (axisDim < 0) {
-    throw new Error(`Index ${axisName} not found`)
-  }
-
-  const axisSize = dense.shape.indices[axisDim].size
   const outData = [...dense.data]
-  const strides = computeStrides(dense.shape)
-  const axisStride = strides[axisDim]
-  const outerSize = dense.data.length / axisSize
 
-  for (let outer = 0; outer < outerSize; outer++) {
-    let startIdx = 0
-    let remaining = outer
-    for (let d = dense.shape.indices.length - 1; d >= 0; d--) {
-      if (d === axisDim)
-        continue
-      const size = dense.shape.indices[d].size
-      const coord = remaining % size
-      remaining = Math.floor(remaining / size)
-      startIdx += coord * strides[d]
-    }
-
-    // Find max for numerical stability
+  forEachAxisGroup(dense, axisIndex, (indices) => {
     let maxVal = Number.NEGATIVE_INFINITY
-    for (let i = 0; i < axisSize; i++) {
-      maxVal = Math.max(maxVal, dense.data[startIdx + i * axisStride])
+    for (const idx of indices) {
+      maxVal = Math.max(maxVal, dense.data[idx])
     }
 
-    // Compute log-sum-exp
     let sumExp = 0
-    for (let i = 0; i < axisSize; i++) {
-      sumExp += Math.exp(dense.data[startIdx + i * axisStride] - maxVal)
+    for (const idx of indices) {
+      sumExp += Math.exp(dense.data[idx] - maxVal)
     }
     const logSumExp = maxVal + Math.log(sumExp)
 
-    // x - log-sum-exp
-    for (let i = 0; i < axisSize; i++) {
-      const idx = startIdx + i * axisStride
+    for (const idx of indices) {
       outData[idx] = dense.data[idx] - logSumExp
     }
-  }
+  })
 
   return createDenseTensor(dense.shape, outData)
 }

@@ -247,6 +247,18 @@ export function getIndexNames(expr: Expression): string[] {
 }
 
 /**
+ * Read an axis name from a function call's argument list.
+ *
+ * An axis argument (`softmax(X, i)`) names an index variable rather than a
+ * tensor, so it has to be read off the syntax tree. Evaluating it would look
+ * up a tensor called `i`, find nothing, and abort the whole call.
+ */
+export function axisArg(call: FunctionCall, position: number): string | undefined {
+  const arg = call.arguments[position]
+  return arg?.type === 'tensor' ? arg.name : undefined
+}
+
+/**
  * Check if two expressions are structurally equal
  */
 export function expressionsEqual(a: Expression, b: Expression): boolean {

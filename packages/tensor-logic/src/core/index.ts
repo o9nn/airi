@@ -29,6 +29,7 @@ export {
   sin,
   smoothStep,
   softmax,
+  softmaxGradient,
   sqrt,
   square,
   step,

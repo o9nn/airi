@@ -15,6 +15,7 @@
 import type { DenseTensor, Tensor } from '../core/types'
 import type { BinaryOp, Expression, FunctionCall, Program, TensorEquation } from '../parser/ast'
 
+import { softmax, softmaxGradient } from '../core/nonlinearities'
 import { add, join, scale, subtract, transpose } from '../core/operations'
 import {
   clone,
@@ -23,6 +24,7 @@ import {
   toDense,
   zeros,
 } from '../core/types'
+import { axisArg } from '../parser/ast'
 import { parse } from '../parser/parser'
 
 /**
@@ -375,10 +377,13 @@ export class DifferentiableEngine {
    */
   private evaluateFunction(call: FunctionCall): Tensor | null {
     const args = call.arguments.map(arg => this.evaluateExpression(arg))
-    if (args.includes(null))
+
+    // Only the operand must resolve to a tensor; a trailing axis argument
+    // names an index and is read from the syntax tree instead.
+    if (args[0] == null)
       return null
 
-    const x = args[0]!
+    const x = args[0]
     const dense = x.type === 'sparse' ? toDense(x) : x
 
     switch (call.name.toLowerCase()) {
@@ -402,12 +407,11 @@ export class DifferentiableEngine {
       case 'log':
         return createDenseTensor(dense.shape, dense.data.map(v => Math.log(Math.max(1e-10, v))))
 
-      case 'softmax': {
-        const maxVal = Math.max(...dense.data)
-        const expData = dense.data.map(v => Math.exp(v - maxVal))
-        const sum = expData.reduce((a, b) => a + b, 0)
-        return createDenseTensor(dense.shape, expData.map(v => v / sum))
-      }
+      case 'softmax':
+        // Delegate to the shared implementation: this used to normalise over
+        // the whole tensor, disagreeing with every other caller for rank >= 2
+        // and leaving the backward pass no well-defined forward to match.
+        return softmax(dense, axisArg(call, 1))
 
       case 'square':
       case 'sq':
@@ -615,11 +619,7 @@ export class DifferentiableEngine {
         ))
 
       case 'softmax':
-        // Softmax Jacobian is complex, simplified here
-        // Full implementation would compute proper Jacobian
-        return createDenseTensor(denseInput.shape, denseInput.data.map((_, i) =>
-          denseGrad.data[i] ?? 0,
-        ))
+        return softmaxGradient(denseInput, denseGrad, axisArg(call, 1))
 
       default:
         return null

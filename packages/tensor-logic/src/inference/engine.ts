@@ -61,24 +61,13 @@ import {
   createShape,
   toDense,
 } from '../core/types'
+import { axisArg } from '../parser/ast'
 import { parse } from '../parser/parser'
 
 /**
  * Tensor store: maps tensor names to tensors
  */
 export type TensorStore = Map<string, Tensor>
-
-/**
- * Read an axis name from a function call's argument list.
- *
- * An axis argument (`softmax(X, i)`) names an index variable, not a tensor, so
- * it has to be read off the syntax tree. Evaluating it would look up a tensor
- * called `i`, find nothing, and abort the whole call.
- */
-function axisArg(call: FunctionCall, position: number): string | undefined {
-  const arg = call.arguments[position]
-  return arg?.type === 'tensor' ? arg.name : undefined
-}
 
 /**
  * Rebind a tensor's index names to the variables written at a reference site.

@@ -2,6 +2,7 @@ import type { DenseTensor, Tensor } from '../core/types'
 
 import { describe, expect, it } from 'vitest'
 
+import { softmax, softmaxGradient } from '../core/nonlinearities'
 import { createDenseTensor, createShape } from '../core/types'
 import {
   AdamOptimizer,
@@ -330,5 +331,59 @@ describe('gradient computation edge cases', () => {
 
     const Y = engine.getTensor('Y')!
     expect((Y as any).data[0]).toBe(5)
+  })
+})
+
+describe('softmax backpropagation', () => {
+  it('should cancel a uniform upstream gradient exactly', () => {
+    // backward() seeds an all-ones gradient. Through softmax that must cancel
+    // to zero, since adding a constant to every logit leaves the output
+    // unchanged. The old identity passthrough returned the ones untouched.
+    const engine = createDifferentiableEngine('Y = softmax(X[i])')
+
+    engine.setParameter('X', createDenseTensor(
+      createShape([{ name: 'i', size: 3 }]),
+      [0.4, -1.3, 2.1],
+    ))
+    engine.forward()
+
+    const y = engine.getTensor('Y') as DenseTensor<number>
+    expect(y.data.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10)
+
+    const dX = engine.backward('Y').get('X') as DenseTensor<number> | undefined
+    expect(dX).toBeDefined()
+    dX!.data.forEach(g => expect(g).toBeCloseTo(0, 10))
+    // Specifically not the seeded ones.
+    expect(dX!.data.some(g => Math.abs(g - 1) < 1e-9)).toBe(false)
+  })
+
+  it('should backpropagate a non-uniform upstream through the Jacobian', () => {
+    // square() downstream makes the upstream gradient 2*y rather than uniform,
+    // so the result depends on the full Jacobian and cannot cancel to zero.
+    const engine = createDifferentiableEngine(`
+      S = softmax(X[i])
+      loss = square(S[i])
+    `)
+    const logits = [1.0, 0.25, -0.5]
+
+    engine.setParameter('X', createDenseTensor(
+      createShape([{ name: 'i', size: 3 }]),
+      logits,
+    ))
+    engine.forward()
+
+    const dX = engine.backward('loss').get('X') as DenseTensor<number> | undefined
+    expect(dX).toBeDefined()
+
+    // Compare against the analytic VJP with the same upstream, d(s^2)/ds = 2s.
+    const y = softmax(createDenseTensor(createShape([{ name: 'i', size: 3 }]), logits))
+    const expected = softmaxGradient(
+      createDenseTensor(createShape([{ name: 'i', size: 3 }]), logits),
+      createDenseTensor(createShape([{ name: 'i', size: 3 }]), y.data.map(v => 2 * v)),
+    )
+
+    dX!.data.forEach((g, i) => expect(g).toBeCloseTo(expected.data[i], 10))
+    // A real Jacobian moves the logits; identity passthrough would not.
+    expect(dX!.data.some(g => Math.abs(g) > 1e-6)).toBe(true)
   })
 })

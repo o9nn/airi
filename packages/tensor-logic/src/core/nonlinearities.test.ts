@@ -23,6 +23,7 @@ import {
   sin,
   smoothStep,
   softmax,
+  softmaxGradient,
   sqrt,
   square,
   step,
@@ -439,5 +440,128 @@ describe('math functions', () => {
 
     const result = clamp(tensor, 0, 1)
     expect(result.data).toEqual([0, 0, 0.5, 1, 1])
+  })
+})
+
+describe('softmaxGradient', () => {
+  /**
+   * Numerical vector-Jacobian product by central differences.
+   *
+   * Treats L = sum_i upstream_i * softmax(x)_i and differentiates it one input
+   * at a time, which is the quantity softmaxGradient claims to return. It
+   * shares no code with the analytic path, so agreement is real evidence.
+   */
+  function numericalGradient(
+    data: number[],
+    dims: Array<{ name: string, size: number }>,
+    upstream: number[],
+    axis?: string,
+    h = 1e-6,
+  ): number[] {
+    const objective = (values: number[]) => {
+      const y = softmax(createDenseTensor(createShape(dims), values), axis)
+      return y.data.reduce((acc, v, i) => acc + upstream[i] * v, 0)
+    }
+
+    return data.map((_, i) => {
+      const plus = [...data]
+      const minus = [...data]
+      plus[i] += h
+      minus[i] -= h
+      return (objective(plus) - objective(minus)) / (2 * h)
+    })
+  }
+
+  it('should match a numerical gradient on a vector', () => {
+    const dims = [{ name: 'i', size: 4 }]
+    const data = [0.4, -1.3, 2.1, 0.05]
+    const upstream = [1, -2, 0.5, 3]
+
+    const analytic = softmaxGradient(
+      createDenseTensor(createShape(dims), data),
+      createDenseTensor(createShape(dims), upstream),
+    )
+    const numeric = numericalGradient(data, dims, upstream)
+
+    analytic.data.forEach((g, i) => expect(g).toBeCloseTo(numeric[i], 7))
+  })
+
+  it('should match a numerical gradient per row of a matrix', () => {
+    // Rank 2 is where a whole-tensor softmax would diverge from a per-axis one,
+    // so this is the case the old implementation could not have satisfied.
+    const dims = [{ name: 'b', size: 2 }, { name: 'i', size: 3 }]
+    const data = [0.1, 0.9, -0.4, 2.0, -1.0, 0.3]
+    const upstream = [1, 0, -1, 0.25, 2, -0.5]
+
+    const analytic = softmaxGradient(
+      createDenseTensor(createShape(dims), data),
+      createDenseTensor(createShape(dims), upstream),
+    )
+    const numeric = numericalGradient(data, dims, upstream)
+
+    analytic.data.forEach((g, i) => expect(g).toBeCloseTo(numeric[i], 7))
+  })
+
+  it('should differentiate along a named axis', () => {
+    const dims = [{ name: 'b', size: 2 }, { name: 'i', size: 3 }]
+    const data = [0.1, 0.9, -0.4, 2.0, -1.0, 0.3]
+    const upstream = [1, 0, -1, 0.25, 2, -0.5]
+
+    const analytic = softmaxGradient(
+      createDenseTensor(createShape(dims), data),
+      createDenseTensor(createShape(dims), upstream),
+      'b',
+    )
+    const numeric = numericalGradient(data, dims, upstream, 'b')
+
+    analytic.data.forEach((g, i) => expect(g).toBeCloseTo(numeric[i], 7))
+  })
+
+  it('should sum to zero within each normalised group', () => {
+    // The Jacobian's columns each sum to zero, so no group can shift the total
+    // probability mass. This is the invariant the identity passthrough broke.
+    const dims = [{ name: 'b', size: 2 }, { name: 'i', size: 3 }]
+    const result = softmaxGradient(
+      createDenseTensor(createShape(dims), [0.1, 0.9, -0.4, 2.0, -1.0, 0.3]),
+      createDenseTensor(createShape(dims), [1, 0, -1, 0.25, 2, -0.5]),
+    )
+
+    expect(result.data[0] + result.data[1] + result.data[2]).toBeCloseTo(0, 10)
+    expect(result.data[3] + result.data[4] + result.data[5]).toBeCloseTo(0, 10)
+  })
+
+  it('should return zero for a uniform upstream gradient', () => {
+    // Adding a constant to every logit leaves softmax unchanged, so a uniform
+    // upstream gradient must produce no update.
+    const dims = [{ name: 'i', size: 4 }]
+    const result = softmaxGradient(
+      createDenseTensor(createShape(dims), [0.4, -1.3, 2.1, 0.05]),
+      createDenseTensor(createShape(dims), [2, 2, 2, 2]),
+    )
+
+    result.data.forEach(g => expect(g).toBeCloseTo(0, 12))
+  })
+
+  it('should recover a Jacobian column from a one-hot upstream gradient', () => {
+    // With upstream = e_k the result is dy_k/dx_i = y_k(d_ik - y_i).
+    const dims = [{ name: 'i', size: 3 }]
+    const data = [0.5, -0.2, 1.1]
+    const y = softmax(createDenseTensor(createShape(dims), data))
+
+    const result = softmaxGradient(
+      createDenseTensor(createShape(dims), data),
+      createDenseTensor(createShape(dims), [0, 1, 0]),
+    )
+
+    for (let i = 0; i < 3; i++) {
+      expect(result.data[i]).toBeCloseTo(y.data[1] * ((i === 1 ? 1 : 0) - y.data[i]), 10)
+    }
+  })
+
+  it('should reject an upstream gradient of the wrong size', () => {
+    expect(() => softmaxGradient(
+      createDenseTensor(createShape([{ name: 'i', size: 3 }]), [1, 2, 3]),
+      createDenseTensor(createShape([{ name: 'i', size: 2 }]), [1, 2]),
+    )).toThrow()
   })
 })
