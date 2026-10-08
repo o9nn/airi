@@ -92,7 +92,9 @@ function bindIndices(tensor: Tensor, ref: TensorRef): Tensor {
     name: ref.indices[i].name,
   })))
 
-  return { ...tensor, shape: bound }
+  // indexNames mirrors the shape everywhere else, and real callers read it:
+  // the projection decision in evaluateEquation, and softmax's default axis.
+  return { ...tensor, shape: bound, indexNames: bound.indices.map(idx => idx.name) }
 }
 
 /**

@@ -380,6 +380,50 @@ export function outer(
 }
 
 /**
+ * Reorder a tensor's dimensions to the given sequence of index names.
+ *
+ * Einstein summation identifies dimensions by name, but storage is positional,
+ * so a result that is correct by name can still be laid out differently from
+ * the tensor it has to line up with. Unlike `transpose`, which swaps a single
+ * pair, this applies an arbitrary permutation.
+ */
+export function alignIndices(tensor: Tensor, order: IndexName[]): DenseTensor<number> {
+  const dense = tensor.type === 'sparse' ? toDense(tensor) : tensor
+
+  if (order.length !== dense.shape.indices.length) {
+    throw new Error(
+      `Cannot align a rank-${dense.shape.indices.length} tensor to ${order.length} index names`,
+    )
+  }
+
+  const permutation = order.map((name) => {
+    const position = dense.shape.indices.findIndex(idx => idx.name === name)
+    if (position < 0) {
+      throw new Error(`Index ${name} not found on tensor [${dense.shape.indices.map(i => i.name).join(', ')}]`)
+    }
+    return position
+  })
+
+  // Already in the requested order, so nothing has to move.
+  if (permutation.every((from, to) => from === to)) {
+    return createDenseTensor(dense.shape, [...dense.data])
+  }
+
+  const outShape = createShape(permutation.map(from => ({
+    name: dense.shape.indices[from].name,
+    size: dense.shape.indices[from].size,
+  })))
+  const outData = Array.from({ length: dense.data.length }, () => 0)
+
+  for (let i = 0; i < dense.data.length; i++) {
+    const coords = flatToCoords(i, dense.shape)
+    outData[coordsToFlat(permutation.map(from => coords[from]), outShape)] = dense.data[i]
+  }
+
+  return createDenseTensor(outShape, outData)
+}
+
+/**
  * Matrix transpose (swap two indices)
  */
 export function transpose(

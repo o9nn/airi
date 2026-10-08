@@ -40,6 +40,7 @@ export {
 // Operations
 export {
   add,
+  alignIndices,
   argmax,
   argmin,
   avgReduce,

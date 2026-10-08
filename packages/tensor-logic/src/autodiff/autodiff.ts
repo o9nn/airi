@@ -16,7 +16,7 @@ import type { DenseTensor, Tensor } from '../core/types'
 import type { BinaryOp, Expression, FunctionCall, Program, TensorEquation } from '../parser/ast'
 
 import { softmax, softmaxGradient } from '../core/nonlinearities'
-import { add, join, scale, subtract, transpose } from '../core/operations'
+import { add, alignIndices, join, scale, subtract } from '../core/operations'
 import {
   clone,
   createDenseTensor,
@@ -519,29 +519,36 @@ export class DifferentiableEngine {
    * ∂L/∂A[i,j] = Σ_k (∂L/∂Y[i,k]) * B[j,k]
    * ∂L/∂B[j,k] = Σ_i (∂L/∂Y[i,k]) * A[i,j]
    */
+  /**
+   * Gradient of a join with respect to one of its operands.
+   *
+   * A join contracts the indices its operands share and keeps the rest:
+   *
+   *   C[uA,uB] = SUM_c A[uA,c] * B[c,uB]
+   *
+   * Differentiating with respect to A gives
+   *
+   *   dL/dA[uA,c] = SUM_uB g[uA,uB] * B[c,uB]
+   *
+   * which is itself a join. Contracting the upstream gradient with the other
+   * operand leaves exactly the target's indices, because the surviving and
+   * contracted indices partition them: g carries uA and uB, B carries c and
+   * uB, so joining them sums over uB and keeps uA and c — which is A.
+   *
+   * That makes the whole gradient one forward join plus an axis permutation,
+   * since join emits the surviving indices in its own order (unique-left then
+   * unique-right) rather than the target's.
+   */
   private computeJoinGradient(
     upstreamGrad: Tensor,
     otherOperand: Tensor,
     targetOperand: Tensor,
   ): Tensor {
-    // Simplified gradient computation for join
-    // In full implementation, need to properly handle index alignment
-    const denseGrad = upstreamGrad.type === 'sparse' ? toDense(upstreamGrad) : upstreamGrad
-    const denseOther = otherOperand.type === 'sparse' ? toDense(otherOperand) : otherOperand
-    const denseTarget = targetOperand.type === 'sparse' ? toDense(targetOperand) : targetOperand
+    const contracted = join(upstreamGrad, otherOperand)
 
-    // For simple case: gradient shape matches target
-    // Join upstream with transposed other operand
-    if (denseGrad.shape.indices.length === 2 && denseOther.shape.indices.length === 2) {
-      const transposed = transpose(denseOther)
-      return join(denseGrad, transposed)
-    }
-
-    // Fallback: return scaled upstream gradient
-    return createDenseTensor(denseTarget.shape, denseTarget.data.map((_, i) => {
-      const gradVal = i < denseGrad.data.length ? denseGrad.data[i] : 0
-      return gradVal
-    }))
+    // Read the names off the shape rather than indexNames, which is the
+    // authoritative ordering for every operation here.
+    return alignIndices(contracted, targetOperand.shape.indices.map(idx => idx.name))
   }
 
   /**

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   add,
+  alignIndices,
   argmax,
   argmin,
   avgReduce,
@@ -372,5 +373,95 @@ describe('sparse tensor operations', () => {
     const result = project(relation, ['x'])
     expect(result.data[0]).toBe(2) // x=0 appears twice
     expect(result.data[1]).toBe(1) // x=1 appears once
+  })
+})
+
+describe('alignIndices', () => {
+  it('should permute axes to the requested order', () => {
+    // [i:2, j:3] row-major -> [j:3, i:2]
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 2 }, { name: 'j', size: 3 }]),
+      [1, 2, 3, 4, 5, 6],
+    )
+
+    const aligned = alignIndices(tensor, ['j', 'i'])
+
+    expect(aligned.shape.indices.map(i => i.name)).toEqual(['j', 'i'])
+    expect(aligned.shape.indices.map(i => i.size)).toEqual([3, 2])
+    expect(Array.from(aligned.data)).toEqual([1, 4, 2, 5, 3, 6])
+    expect(aligned.indexNames).toEqual(['j', 'i'])
+  })
+
+  it('should handle a three-way rotation', () => {
+    const tensor = createDenseTensor(
+      createShape([
+        { name: 'a', size: 2 },
+        { name: 'b', size: 3 },
+        { name: 'c', size: 4 },
+      ]),
+      Array.from({ length: 24 }, (_, i) => i),
+    )
+
+    const aligned = alignIndices(tensor, ['c', 'a', 'b'])
+
+    expect(aligned.shape.indices.map(i => i.size)).toEqual([4, 2, 3])
+    // Every element must land where its coordinates say, not merely survive.
+    for (let a = 0; a < 2; a++) {
+      for (let b = 0; b < 3; b++) {
+        for (let c = 0; c < 4; c++) {
+          const source = (a * 3 + b) * 4 + c
+          const destination = (c * 2 + a) * 3 + b
+          expect(aligned.data[destination]).toBe(tensor.data[source])
+        }
+      }
+    }
+  })
+
+  it('should be a no-op when already in order', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 2 }, { name: 'j', size: 2 }]),
+      [1, 2, 3, 4],
+    )
+
+    const aligned = alignIndices(tensor, ['i', 'j'])
+
+    expect(Array.from(aligned.data)).toEqual([1, 2, 3, 4])
+    // A copy, so mutating the result cannot reach back into the input.
+    aligned.data[0] = 99
+    expect(tensor.data[0]).toBe(1)
+  })
+
+  it('should round-trip through the inverse permutation', () => {
+    const tensor = createDenseTensor(
+      createShape([
+        { name: 'x', size: 2 },
+        { name: 'y', size: 3 },
+        { name: 'z', size: 2 },
+      ]),
+      Array.from({ length: 12 }, (_, i) => i * 1.5),
+    )
+
+    const there = alignIndices(tensor, ['z', 'x', 'y'])
+    const back = alignIndices(there, ['x', 'y', 'z'])
+
+    expect(Array.from(back.data)).toEqual(Array.from(tensor.data))
+  })
+
+  it('should reject an unknown index name', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 2 }]),
+      [1, 2],
+    )
+
+    expect(() => alignIndices(tensor, ['q'])).toThrow(/not found/)
+  })
+
+  it('should reject a rank mismatch', () => {
+    const tensor = createDenseTensor(
+      createShape([{ name: 'i', size: 2 }, { name: 'j', size: 2 }]),
+      [1, 2, 3, 4],
+    )
+
+    expect(() => alignIndices(tensor, ['i'])).toThrow(/Cannot align/)
   })
 })

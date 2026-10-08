@@ -381,3 +381,38 @@ describe('setTensor', () => {
     expect((engine.getTensor('Y') as any).data).toEqual([3, 4])
   })
 })
+
+describe('index rebinding consistency', () => {
+  it('should keep indexNames in step with the rebound shape', () => {
+    // The equation renames both axes, so a tensor whose indexNames still held
+    // its stored names would report one set of axes and carry another.
+    const X = createDenseTensor(
+      createShape([{ name: 'p', size: 2 }, { name: 'q', size: 3 }]),
+      [1, 2, 3, 4, 5, 6],
+    )
+
+    const engine = createForwardEngine('Y[i,j] = X[i,j]', new Map([['X', X]]))
+    const Y = engine.execute().tensors.get('Y') as any
+
+    expect(Y.shape.indices.map((idx: any) => idx.name)).toEqual(['i', 'j'])
+    expect(Y.indexNames).toEqual(['i', 'j'])
+  })
+
+  it('should resolve a default axis against the rebound names', () => {
+    // softmax with no axis argument reads indexNames to pick the last
+    // dimension. Stale names there make it look up an axis the shape no
+    // longer has, so this throws rather than merely normalising the wrong way.
+    const X = createDenseTensor(
+      createShape([{ name: 'p', size: 2 }, { name: 'q', size: 3 }]),
+      [1, 2, 3, 1, 2, 3],
+    )
+
+    const engine = createForwardEngine('Y[i,j] = softmax(X[i,j])', new Map([['X', X]]))
+    const Y = engine.execute().tensors.get('Y') as any
+
+    expect(Y).toBeDefined()
+    // Normalised along j, so each of the two rows is a distribution.
+    expect(Y.data[0] + Y.data[1] + Y.data[2]).toBeCloseTo(1, 10)
+    expect(Y.data[3] + Y.data[4] + Y.data[5]).toBeCloseTo(1, 10)
+  })
+})
