@@ -413,7 +413,7 @@ export function alignIndices(tensor: Tensor, order: IndexName[]): DenseTensor<nu
     name: dense.shape.indices[from].name,
     size: dense.shape.indices[from].size,
   })))
-  const outData = Array.from({ length: dense.data.length }, () => 0)
+  const outData = Array.from<number>({ length: dense.data.length }).fill(0)
 
   for (let i = 0; i < dense.data.length; i++) {
     const coords = flatToCoords(i, dense.shape)

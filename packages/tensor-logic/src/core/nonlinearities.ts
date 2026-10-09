@@ -259,7 +259,7 @@ export function softmaxGradient(
   }
 
   const output = softmax(dense, axisIndex)
-  const outData = Array.from({ length: dense.data.length }, () => 0)
+  const outData = Array.from<number>({ length: dense.data.length }).fill(0)
 
   forEachAxisGroup(dense, axisIndex, (indices) => {
     let dot = 0

@@ -17,28 +17,28 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     },
     "./core": {
-      "types": "./dist/core/index.d.ts",
-      "default": "./dist/core/index.js"
+      "types": "./dist/core/index.d.mts",
+      "default": "./dist/core/index.mjs"
     },
     "./parser": {
-      "types": "./dist/parser/index.d.ts",
-      "default": "./dist/parser/index.js"
+      "types": "./dist/parser/index.d.mts",
+      "default": "./dist/parser/index.mjs"
     },
     "./inference": {
-      "types": "./dist/inference/index.d.ts",
-      "default": "./dist/inference/index.js"
+      "types": "./dist/inference/index.d.mts",
+      "default": "./dist/inference/index.mjs"
     },
     "./autodiff": {
-      "types": "./dist/autodiff/index.d.ts",
-      "default": "./dist/autodiff/index.js"
+      "types": "./dist/autodiff/index.d.mts",
+      "default": "./dist/autodiff/index.mjs"
     },
     "./embeddings": {
-      "types": "./dist/embeddings/index.d.ts",
-      "default": "./dist/embeddings/index.js"
+      "types": "./dist/embeddings/index.d.mts",
+      "default": "./dist/embeddings/index.mjs"
     }
   },
   "scripts": {

@@ -162,7 +162,7 @@ function leadingSingularVectors(
   const rows = unfolding.shape.indices[0].size
   const cols = unfolding.shape.indices[1].size
 
-  const gram: number[][] = Array.from({ length: rows }, () => Array.from({ length: rows }, () => 0))
+  const gram: number[][] = Array.from({ length: rows }, () => Array.from<number>({ length: rows }).fill(0))
   for (let i = 0; i < rows; i++) {
     for (let j = i; j < rows; j++) {
       let sum = 0
@@ -180,7 +180,7 @@ function leadingSingularVectors(
     { name: tensor.shape.indices[mode].name, size: rows },
     { name: `e${mode}`, size: rank },
   ])
-  const data = Array.from({ length: rows * rank }, () => 0)
+  const data = Array.from<number>({ length: rows * rank }).fill(0)
 
   // A rank wider than the mode leaves the surplus columns zero: the unfolding
   // simply has no more independent directions to offer.

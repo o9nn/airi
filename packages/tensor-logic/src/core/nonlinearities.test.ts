@@ -290,7 +290,7 @@ describe('dropout', () => {
   it('should zero some elements in training', () => {
     const tensor = createDenseTensor(
       createShape([{ name: 'i', size: 100 }]),
-      Array.from({ length: 100 }, () => 1),
+      Array.from<number>({ length: 100 }).fill(1),
     )
 
     const result = dropout(tensor, 0.5, true)
